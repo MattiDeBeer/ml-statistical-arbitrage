@@ -415,7 +415,7 @@ class binance_api:
             else:
                 self.positions[token] = token_amount
                 
-            print(f"bought {token_amount} of {token} at ${price} (cost ${amount})")
+            print(f"Bought {token_amount} of {token} at ${price} (cost ${amount})")
             
             if return_data:
                 return token_amount
@@ -446,7 +446,7 @@ class binance_api:
             token_amount = discounted_amount /price
             self.money += discounted_amount
             
-            print(f"shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
+            print(f"Shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
             if token in self.positions.keys():
                 self.positions[token] -= token_amount
             else:
@@ -470,7 +470,7 @@ class binance_api:
 
         """
         if self.time + time_step >= self.max_time:
-            print(f"max time exceeded, setting time to final dataset time ({self.max_time})")
+            print(f"Max time exceeded, setting time to final dataset time ({self.max_time})")
             self.time = self.max_time
             return False
         else:
