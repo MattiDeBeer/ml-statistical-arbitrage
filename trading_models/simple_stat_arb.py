@@ -46,8 +46,15 @@ class simple_stat_arb_trader:
         self.trades_logger = []
         self.wrapper = wrapper
         self.trades_number = 0
+        self.funds_tracker= [[],[]]
         
         
+    def calculate_hedge_ratio(self,price1, price2):
+        
+        hedge_ratio = np.mean(price1)/np.mean(price2)
+        
+        return hedge_ratio
+    
     def calc_current_ab(self,wrapper,token1,token2,window_length):
         """
         Parameters
@@ -74,11 +81,11 @@ class simple_stat_arb_trader:
         price_data = wrapper.get_prices((token1,token2), window_length,return_data=True)
         
         #extract open price data
-        btc = price_data[token1]['open']
-        xrp = price_data[token1]['open']
+        asset1 = price_data[token1]['open']
+        asset2 = price_data[token1]['open']
         
         #calculate the hedge ration
-        hedge_ratio = np.mean(btc)/np.mean(xrp)
+        hedge_ratio = self.calculate_hedge_ratio(asset1,asset2)
         
         #generate arbritrage spread
         ab_data = wrapper.generate_arbritrage_pair(token1+'-'+token2, hedge_ratio,return_data=True)['open']
@@ -131,6 +138,8 @@ class simple_stat_arb_trader:
                                    'token 1 value' : token_1_value, 'token 2 value' : token_2_value, \
                                     'discounted_position_value' : discounted_position_value})
         self.trades_number += 1
+        self.funds_tracker[0].append(self.wrapper.time)
+        self.funds_tracker[1].append(self.wrapper.money)
             
     def execute_long(self,current_ab):
         """
@@ -190,7 +199,8 @@ class simple_stat_arb_trader:
                                   'token 1 value' : token_1_value, 'token 2 value' : token_2_value, \
                                    'discounted_position_value' : discounted_position_value})
         self.trades_number += 1
-        
+        self.funds_tracker[0].append(self.wrapper.time)
+        self.funds_tracker[1].append(self.wrapper.money)
         
     def start_trading(self,timesteps):
         """
@@ -223,3 +233,5 @@ class simple_stat_arb_trader:
                 self.execute_long(current_ab)
         
             trading_flag = self.wrapper.step_time(1)
+        
+        return trading_flag
