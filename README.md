@@ -9,3 +9,7 @@ python-binance
 ```
 pip install python-binance
 ```
+nolds
+```
+pip install nolds
+```
