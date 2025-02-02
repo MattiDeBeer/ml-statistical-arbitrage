@@ -1,0 +1,21 @@
+# macOS system files
+.DS_Store
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+env/
+venv/
+../env/
+
+# API keys and sensitive data
+keys.txt
+
+# Other untracked files
+=2.0
+
+
