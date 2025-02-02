@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import copy
 from nolds import hurst_rs
 
-
 """
 EXAMPLE USAGE
 
@@ -62,20 +61,25 @@ class binance_trading_env:
         Initilises a wrapper with the binance api client using the keys
 
         Returns
-        -------
+        -------#creates a binance client object for data collection
+        self.client = Client(self.__api_key, self.__api_secret)
         None.
 
         '''
         #reads keys from file
-        with open(key_filename) as key_file:
-            key = key_file.readline().strip('\n')
-            secret = key_file.readline().strip('\n')
+        try:
+            with open(key_filename) as key_file:
+                key = key_file.readline().strip('\n')
+                secret = key_file.readline().strip('\n')
+            
+            self.__api_key = key
+            self.__api_secret = secret
         
-        self.__api_key = key
-        self.__api_secret = secret
-        
-        #creates a binance client object for data collection
-        self.client = Client(self.__api_key, self.__api_secret)
+            #creates a binance client object for data collection
+            self.client = Client(self.__api_key, self.__api_secret)
+        except:
+            print('No keys.txt file found and binance client could not be established')
+            print('The object was initialised, but only generated data can be used.')
         
         #spcifies the model starting time
         self.time = 0
@@ -85,14 +89,13 @@ class binance_trading_env:
         self.transaction_percentage = 0.001
         #creates an empty dictionary for model positions
         self.positions = {}
-        print("Binance API initialized")
+        print("Binance Enviroment initialized")
         
         
-    def get_sin_wave_dataset(self, num_data_points, period = 100, noise = 0,bin_size = 10,return_data = False):
+    def get_sin_wave_dataset(self, num_data_points, period = 0.01, noise = 0,bin_size = 10,return_data = False):
         
-        assert num_data_points % bin_size == 0, 'The number of datapoints must be divisible by the bin size'
-        x = np.linspace(0,100,num_data_points)
-        y = np.sin(2 * np.pi * x / period) + np.random.uniform(0,noise,num_data_points)
+        x = np.linspace(0,1,num_data_points*bin_size)
+        y = np.sin(2 * np.pi * x / period) + np.random.uniform(0,noise,num_data_points*bin_size) + (1+noise)*np.ones(num_data_points*bin_size)
         
         klines = {}
         
@@ -104,6 +107,7 @@ class binance_trading_env:
         
         self.dataset_klines = {}
         self.dataset_klines['SIN'] = klines
+        self.max_time = num_data_points
         
         if return_data:
             return self.dataset_klines
@@ -318,14 +322,25 @@ class binance_trading_env:
         
         if self.time == 0:
             self.time = amount
-        
-        for symbol in symbols:
-            assert symbol in self.dataset_klines.keys()
+            
+            
+        if isinstance(symbols,str):
+            assert symbols in self.dataset_klines.keys(), f"No data with key {symbols} has been found"
             tmp_dict = {}
-            for key, values in self.dataset_klines[symbol].items():
+            for key, values in self.dataset_klines[symbols].items():
                 tmp_dict[key] = values[self.time-amount:self.time]
                 
-            self.klines[symbol] = tmp_dict
+            self.klines[symbols] = tmp_dict
+            
+        else:
+        
+            for symbol in symbols:
+                assert symbol in self.dataset_klines.keys(), f"No data with key {symbol} has been found"
+                tmp_dict = {}
+                for key, values in self.dataset_klines[symbol].items():
+                    tmp_dict[key] = values[self.time-amount:self.time]
+                    
+                self.klines[symbol] = tmp_dict
             
         if return_data:
             return self.klines
@@ -382,6 +397,26 @@ class binance_trading_env:
         self.arbritrage_pairs[pair] = tmp_dict
         return tmp_dict
     
+    def get_current_portfolio_value(self):
+        
+        asset_values = 0
+    
+        for key in self.positions.keys():
+            token_amount = self.positions[key]
+            token_price = self.get_current_price(key)
+            if token_amount > 0:
+                gain = token_amount * token_price
+                discounted_gain = gain - gain*self.transaction_percentage
+                asset_values += discounted_gain
+            else:
+                token_amount = -1*token_amount
+                loss = token_amount * token_price
+                additional_loss = loss + loss*self.transaction_percentage
+                asset_values -= additional_loss
+               
+        return self.money + asset_values
+        
+    
     def get_current_price(self,symbol,key = 'open'):
         """
         
@@ -437,7 +472,7 @@ class binance_trading_env:
             else:
                 self.positions[token] = token_amount
                 
-            print(f"Bought {token_amount} of {token} at ${price} (cost ${amount})")
+            #print(f"Bought {token_amount} of {token} at ${price} (cost ${amount})")
             
             if return_data:
                 return token_amount
@@ -468,7 +503,7 @@ class binance_trading_env:
             token_amount = discounted_amount /price
             self.money += discounted_amount
             
-            print(f"Shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
+            #print(f"Shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
             if token in self.positions.keys():
                 self.positions[token] -= token_amount
             else:
@@ -492,7 +527,7 @@ class binance_trading_env:
 
         """
         if self.time + time_step >= self.max_time:
-            print(f"Max time exceeded, setting time to final dataset time ({self.max_time})")
+            #print(f"Max time exceeded, setting time to final dataset time ({self.max_time})")
             self.time = self.max_time
             return False
         else:
@@ -520,13 +555,13 @@ class binance_trading_env:
                 gain = token_amount * token_price
                 discounted_gain = gain - gain*self.transaction_percentage
                 self.money += discounted_gain
-                print(f"Sold {token_amount} {key} for ${discounted_gain}")
+                #print(f"Sold {token_amount} {key} for ${discounted_gain}")
             else:
                 token_amount = -1*token_amount
                 loss = token_amount * token_price
                 additional_loss = loss + loss*self.transaction_percentage
                 self.money -= additional_loss
-                print(f"Bought {token_amount} {key} for ${additional_loss}")
+                #print(f"Bought {token_amount} {key} for ${additional_loss}")
             
             
         self.positions = {}
