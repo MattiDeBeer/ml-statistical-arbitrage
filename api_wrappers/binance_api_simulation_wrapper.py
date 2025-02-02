@@ -177,6 +177,209 @@ class binance_api:
             return self.dataset_klines
         
         
+    def get_5_minute_prices_dataset(self, symbols, amount, return_data=False):
+        """
+        Fetches historical 5-minute price data for given symbols.
+    
+        Parameters
+        ----------
+        symbols : tuple of str
+            A tuple of required token prices (e.g., ('BTCUSDT', 'ETHUSDT')).
+        amount : int
+            The number of historical 5-minute intervals required.
+        return_data : bool, optional
+            If True, returns the dataset.
+    
+        Returns
+        -------
+        klines : dict
+            A dictionary containing historical price data.
+            Structured as a nested dictionary:
+            e.g., klines['BTCUSDT']['open'] is a 1D NumPy array of open prices.
+        """
+        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
+        assert isinstance(amount, int), "amount must be an integer"
+    
+        klines = {}
+    
+        for symbol in symbols:
+            print(f'Fetching {amount} 5-minute prices for {symbol}')
+            labeled_price_data = {}
+    
+            # Fetch historical 5-minute Kline (candlestick) data
+            price_data = np.array(
+                self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_5MINUTE, f"{amount * 5} minutes ago UTC")
+            )
+    
+            # Transpose and convert to float
+            price_data = price_data.T.astype(float)
+    
+            # Store labeled data
+            labeled_price_data['time'] = np.array(price_data[0])      # Timestamp
+            labeled_price_data['open'] = np.array(price_data[1])      # Open price
+            labeled_price_data['high'] = np.array(price_data[2])      # High price
+            labeled_price_data['low'] = np.array(price_data[3])       # Low price
+            labeled_price_data['close'] = np.array(price_data[4])     # Close price
+            labeled_price_data['volume'] = np.array(price_data[5])    # Volume
+    
+            klines[symbol] = labeled_price_data  
+    
+        self.dataset_klines = klines
+        if return_data:
+            return self.dataset_klines
+
+
+    def get_15_minute_prices_dataset(self, symbols, amount, return_data=False):
+        """
+        Fetches historical 15-minute price data for given symbols.
+    
+        Parameters
+        ----------
+        symbols : tuple of str
+            A tuple of required token prices (e.g., ('BTCUSDT', 'ETHUSDT')).
+        amount : int
+            The number of historical 15-minute intervals required.
+        return_data : bool, optional
+            If True, returns the dataset.
+    
+        Returns
+        -------
+        klines : dict
+            A dictionary containing historical price data.
+            Structured as a nested dictionary:
+            e.g., klines['BTCUSDT']['open'] is a 1D NumPy array of open prices.
+        """
+        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
+        assert isinstance(amount, int), "amount must be an integer"
+    
+        klines = {}
+    
+        for symbol in symbols:
+            print(f'Fetching {amount} 15-minute prices for {symbol}')
+            labeled_price_data = {}
+    
+            # Fetch historical 15-minute Kline (candlestick) data
+            price_data = np.array(
+                self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_15MINUTE, f"{amount * 15} minutes ago UTC")
+            )
+    
+            # Transpose and convert to float
+            price_data = price_data.T.astype(float)
+    
+            # Store labeled data
+            labeled_price_data['time'] = np.array(price_data[0])      # Timestamp
+            labeled_price_data['open'] = np.array(price_data[1])      # Open price
+            labeled_price_data['high'] = np.array(price_data[2])      # High price
+            labeled_price_data['low'] = np.array(price_data[3])       # Low price
+            labeled_price_data['close'] = np.array(price_data[4])     # Close price
+            labeled_price_data['volume'] = np.array(price_data[5])    # Volume
+    
+            klines[symbol] = labeled_price_data  
+    
+        self.dataset_klines = klines
+        if return_data:
+            return self.dataset_klines
+
+    def get_hour_prices_dataset(self, symbols, amount, return_data=False):
+        """
+        Fetches historical 1-hour price data for given symbols.
+    
+        Parameters
+        ----------
+        symbols : tuple of str
+            A tuple of required token prices (e.g., ('BTCUSDT', 'ETHUSDT')).
+        amount : int
+            The number of historical 1-hour intervals required.
+        return_data : bool, optional
+            If True, returns the dataset.
+    
+        Returns
+        -------
+        klines : dict
+            A dictionary containing historical price data.
+        """
+        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
+        assert isinstance(amount, int), "amount must be an integer"
+    
+        klines = {}
+    
+        for symbol in symbols:
+            print(f'Fetching {amount} 1-hour prices for {symbol}')
+            labeled_price_data = {}
+    
+            # Fetch historical 1-hour Kline (candlestick) data
+            price_data = np.array(
+                self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_1HOUR, f"{amount} hours ago UTC")
+            )
+    
+            # Transpose and convert to float
+            price_data = price_data.T.astype(float)
+    
+            # Store labeled data
+            labeled_price_data['time'] = np.array(price_data[0])      # Timestamp
+            labeled_price_data['open'] = np.array(price_data[1])      # Open price
+            labeled_price_data['high'] = np.array(price_data[2])      # High price
+            labeled_price_data['low'] = np.array(price_data[3])       # Low price
+            labeled_price_data['close'] = np.array(price_data[4])     # Close price
+            labeled_price_data['volume'] = np.array(price_data[5])    # Volume
+    
+            klines[symbol] = labeled_price_data  
+    
+        self.dataset_klines = klines
+        if return_data:
+            return self.dataset_klines
+
+
+    def get_4_hour_prices_dataset(self, symbols, amount, return_data=False):
+        """
+        Fetches historical 4-hour price data for given symbols.
+    
+        Parameters
+        ----------
+        symbols : tuple of str
+            A tuple of required token prices (e.g., ('BTCUSDT', 'ETHUSDT')).
+        amount : int
+            The number of historical 4-hour intervals required.
+        return_data : bool, optional
+            If True, returns the dataset.
+    
+        Returns
+        -------
+        klines : dict
+            A dictionary containing historical price data.
+        """
+        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
+        assert isinstance(amount, int), "amount must be an integer"
+    
+        klines = {}
+    
+        for symbol in symbols:
+            print(f'Fetching {amount} 4-hour prices for {symbol}')
+            labeled_price_data = {}
+    
+            # Fetch historical 4-hour Kline (candlestick) data
+            price_data = np.array(
+                self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_4HOUR, f"{amount * 4} hours ago UTC")
+            )
+    
+            # Transpose and convert to float
+            price_data = price_data.T.astype(float)
+    
+            # Store labeled data
+            labeled_price_data['time'] = np.array(price_data[0])      # Timestamp
+            labeled_price_data['open'] = np.array(price_data[1])      # Open price
+            labeled_price_data['high'] = np.array(price_data[2])      # High price
+            labeled_price_data['low'] = np.array(price_data[3])       # Low price
+            labeled_price_data['close'] = np.array(price_data[4])     # Close price
+            labeled_price_data['volume'] = np.array(price_data[5])    # Volume
+    
+            klines[symbol] = labeled_price_data  
+    
+        self.dataset_klines = klines
+        if return_data:
+            return self.dataset_klines
+        
+        
         
     def align_time_series(self,pair,return_data=False):
         """
@@ -263,6 +466,25 @@ class binance_api:
             if return_data:
                 return aligned_klines
             
+    def generate_log_returns(self,symbols, return_data=False):
+        self.log_returns_dataset = {}
+
+        for symbol in symbols:
+            if symbol not in self.dataset_klines:
+                print(f"Skipping {symbol}, not in dataset.")
+                # Skip if the symbol is not in the dataset
+            
+            self.log_returns_dataset[symbol] = {}  # Initialize nested dictionary
+    
+            for key, series in self.dataset_klines[symbol].items():
+                if key in ["time", "volume"]:
+                    self.log_returns_dataset[symbol][key] = series  # Keep time and volume unchanged
+                else:
+                    self.log_returns_dataset[symbol][key] = np.log(series[1:] / series[:-1]) # Compute log returns
+        
+        if return_data:
+            return self.log_returns_dataset
+        
             
     def get_prices(self,symbols,amount,return_data=False):
         """
