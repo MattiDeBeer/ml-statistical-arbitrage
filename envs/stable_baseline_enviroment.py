@@ -83,24 +83,25 @@ class DQNTradingEnv(gym.Env):
             self.current_value = self.helper_env.get_current_portfolio_value()
             reward = np.log(self.current_value) - np.log(self.previous_value)
             self.helper_env.step_time(1)
-        elif action == 1: #buy
+            action_type = 0
+            
+        else: #elif action == 1: 
+            #sell if  token is held
             if self.token_amount_held > 0:
-                reward = -1
-            else:
-                self.token_amount_held += self.helper_env.buy_token('SIN', 1, return_data= True)
-                self.current_value = self.helper_env.get_current_portfolio_value()
-                reward = np.log(self.current_value) - np.log(self.previous_value)
-                self.helper_env.step_time(1)
-        elif action == 2: #sell
-            if self.token_amount_held <= 0:
-                reward = -1
-            else:            
                 self.token_amount_held = 0
                 self.helper_env.close_all_positons()
                 self.current_value = self.helper_env.get_current_portfolio_value()
                 reward = np.log(self.current_value) - np.log(self.previous_value)
                 self.helper_env.step_time(1)
-        
+                action_type = -1
+            else:
+                #buy if token is not held
+                self.token_amount_held += self.helper_env.buy_token('SIN', 1, return_data= True)
+                self.current_value = self.helper_env.get_current_portfolio_value()
+                reward = np.log(self.current_value) - np.log(self.previous_value)
+                self.helper_env.step_time(1)    
+                action_type = -1
+                
         
         self.previous_value = self.current_value
         
@@ -112,7 +113,7 @@ class DQNTradingEnv(gym.Env):
         done = self.current_step >= self.episode_length
         
         # Info dictionary (optional)
-        info = {}
+        info = {'step':self.step, 'price': self.state[-2], 'action' : action_type}
         
         return self.state, reward, done, False, info
 
@@ -120,7 +121,5 @@ class DQNTradingEnv(gym.Env):
         """Render the environment (optional)"""
         print(f"Current State: {self.state}")
         
-    def close(self):
-        """Clean up resources (optional)"""
-        pass
+  
 
