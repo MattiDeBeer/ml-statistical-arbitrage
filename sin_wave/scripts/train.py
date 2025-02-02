@@ -18,7 +18,7 @@ def main():
 
     # 3) Train agent
     # If using stable-baselines3 DQN:
-    model = train_dqn(env, total_timesteps=300, verbose=1)
+    model = train_dqn(env, total_timesteps=10000, verbose=1)
 
     # 4) Evaluate
     obs = env.reset()
