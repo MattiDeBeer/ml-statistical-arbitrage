@@ -1,8 +1,8 @@
 # scripts/train.py
 
-from data_generation.synthetic_data import generate_sine_wave_data
+from data.generate_sin import generate_sine_wave_data
 from envs.trading_env import TradingEnv
-from agents.dqn_agent import train_dqn  # or DQNAgent if custom
+from agents.dqn import train_dqn  # or DQNAgent if custom
 
 def main():
     # 1) Generate data
