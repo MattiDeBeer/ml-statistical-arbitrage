@@ -1,5 +1,5 @@
 # scripts/train.py
-
+from scripts.plot import evaluate_and_plot
 from data.generate_sin import generate_sine_wave_data
 from envs.trading_env import TradingEnv
 from agents.dqn import train_dqn  # or DQNAgent if custom
@@ -18,7 +18,7 @@ def main():
 
     # 3) Train agent
     # If using stable-baselines3 DQN:
-    model = train_dqn(env, total_timesteps=20000, verbose=1)
+    model = train_dqn(env, total_timesteps=1, verbose=1)
 
     # 4) Evaluate
     obs = env.reset()
@@ -30,6 +30,9 @@ def main():
         total_reward += reward
     
     print("Test episode total reward:", total_reward)
+    
+    #5) Plot
+    evaluate_and_plot(env, model)
 
 if __name__ == "__main__":
     main()
