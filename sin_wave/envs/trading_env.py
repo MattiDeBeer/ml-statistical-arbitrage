@@ -1,8 +1,6 @@
 import gym
 import numpy as np
 from gym import spaces
-import numpy as np
-from gym import spaces
 
 class TradingEnv(gym.Env):
     def __init__(self, df, initial_balance=10000, window_size=5):

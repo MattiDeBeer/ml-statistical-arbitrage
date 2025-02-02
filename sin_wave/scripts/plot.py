@@ -36,7 +36,6 @@ def evaluate_and_plot(env, model):
     # Plot markers
     plt.scatter(buy_steps, buy_prices, marker='^', color='green', s=100, label='Buy')
     plt.scatter(sell_steps, sell_prices, marker='v', color='red', s=100, label='Sell')
-    plt.scatter(hold_steps, hold_prices, marker='x', color='blue', s=100, label='Hold')
     # Uncomment the following line if you want to mark holds as well:
     # plt.scatter(hold_steps, hold_prices, marker='o', color='blue', s=50, label='Hold')
 
