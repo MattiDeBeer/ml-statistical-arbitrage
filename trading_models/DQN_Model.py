@@ -36,8 +36,9 @@ def train_dqn(env, total_timesteps=10000, verbose=1, **kwargs):
         policy="MlpPolicy", 
         env=vec_env, 
         verbose=verbose,
+        device = "cuda",
         # Some hyperparameters you might want to tune:
-        learning_rate=1e-3,
+        learning_rate=1e-4,
         buffer_size=50000,
         learning_starts=1000,
         batch_size=32,

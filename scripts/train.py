@@ -1,6 +1,5 @@
 # scripts/train.py
 import sys
-from scripts.plot import evaluate_and_plot
 sys.path.append("../")
 from envs.stable_baseline_enviroment import DQNTradingEnv
 from trading_models.DQN_Model import train_dqn
@@ -8,7 +7,7 @@ from trading_models.DQN_Model import train_dqn
 def main():
 
     # 2) Create environment
-    env = DQNTradingEnv(10)
+    env = DQNTradingEnv(20)
 
     # 3) Train agent
     # If using stable-baselines3 DQN:
@@ -24,10 +23,6 @@ def main():
         
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _ , info = env.step(action)
-        print(f"Action: {action}")
-        print(f"Obvs: {obs}")
-        print(f"Reward {reward}")
-        input('>')
         total_reward += reward
     
     print("Test episode total reward:", total_reward)
