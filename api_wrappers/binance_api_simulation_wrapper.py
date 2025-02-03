@@ -87,6 +87,7 @@ class binance_api:
         self.positions = {}
         print("Binance API initialized")
         
+        
     def get_minute_prices_dataset(self,symbols,amount,return_data = False):
         
         '''
