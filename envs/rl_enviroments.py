@@ -14,7 +14,12 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         super().__init__()
     
         # Load dataset form inherited trading env
-        self.get_sin_wave_dataset(dataset_length, period=0.1, bin_size=10)
+        #self.get_sin_wave_dataset(dataset_length, period=0.1, bin_size=10)
+        self.dataset_length = dataset_length
+        
+        #get complex sin wave dataset
+        self.get_complex_sin_wave_dataset(dataset_length)
+        
         
         # Define action and observation space
         self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Buy/Sell
@@ -75,12 +80,12 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state"""
-        super().reset(seed=seed)  
         self.close_all_positons()
         self.token_amount_held = 0
         self.time = self.window_length + 1
         self.bought_last_time = 0
         self.steps_since_action = 0
+        self.get_complex_sin_wave_dataset(self.dataset_length, random_seed = seed)
         self.state = self.generate_observation()
         self.current_step = 0
         self.token_amount_held = 0
@@ -89,6 +94,7 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         return self.state, {}
 
     def step(self, action):
+            
         # Apply action
         if action == 0:
             self.current_value = self.get_current_portfolio_value()
