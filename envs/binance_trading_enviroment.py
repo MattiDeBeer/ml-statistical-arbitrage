@@ -1,4 +1,4 @@
-from binance import Client, ThreadedWebsocketManager, ThreadedDepthCacheManager
+#from binance import Client, ThreadedWebsocketManager, ThreadedDepthCacheManager
 import numpy as np
 import matplotlib.pyplot as plt 
 import copy
@@ -51,12 +51,14 @@ for example, it will cover any shorts by buying the token, and selling any held 
 """
 
 
-class binance_trading_env: 
+class BinanceTradingEnv: 
     '''
     Defines a wrapper object for the binance api
     '''
-    
     def __init__(self,key_filename = 'keys.txt'):
+        
+        #The instantiation of the client is not serialisable. so this has been commented out
+        #funcitonality for realtime binance data will be added later
         '''
         Initilises a wrapper with the binance api client using the keys
 
@@ -66,21 +68,24 @@ class binance_trading_env:
         None.
 
         '''
+
+        """
         #reads keys from file
         try:
             with open(key_filename) as key_file:
                 key = key_file.readline().strip('\n')
                 secret = key_file.readline().strip('\n')
-            
+
             self.__api_key = key
             self.__api_secret = secret
-        
+
             #creates a binance client object for data collection
             self.client = Client(self.__api_key, self.__api_secret)
         except:
             print('No keys.txt file found and binance client could not be established')
             print('The object was initialised, but only generated data can be used.')
-        
+        """
+
         #spcifies the model starting time
         self.time = 0
         #specifiec the default model funds (USD)
@@ -95,7 +100,7 @@ class binance_trading_env:
     def get_sin_wave_dataset(self, num_data_points, period = 0.01, noise = 0,bin_size = 10,return_data = False):
         
         x = np.linspace(0,1,num_data_points*bin_size)
-        y = np.sin(2 * np.pi * x / period) + np.random.uniform(0,noise,num_data_points*bin_size) + (1+noise)*np.ones(num_data_points*bin_size)
+        y = 0.5*np.sin(2 * np.pi * x / period) + np.random.uniform(0,noise,num_data_points*bin_size) + (1+noise)*np.ones(num_data_points*bin_size)
         
         klines = {}
         
@@ -112,98 +117,7 @@ class binance_trading_env:
         if return_data:
             return self.dataset_klines
         
-        
-    def get_minute_prices_dataset(self,symbols,amount,return_data = False):
-        
-        '''
-        
-        Parameters
-        ----------
-        symbols : Array of strincg
-            An array of the required token prices e.g BTCUSDT.
-        amount : Integer
-            The amount of historical datapoints you require.
-
-        Returns
-        -------
-        klines : Dictonary
-            A Dictonary of the historical price data.
-            This is stored as a 2d dictionary of values over the given interval.
-            e.g klines['BTCUSDT']['open'] is a 1d numpy array of open prices over the interval
-
-        '''
-        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
-        assert isinstance(amount, int), "amount must be an integer"
-        
-        klines = {}
-    
-        for symbol in symbols:
-            print('Fetching {0} minute prices for the last {1} minutes'.format(symbol,amount))
-            labeled_price_data = {}
-            price_data = np.array(self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_1MINUTE, "{0} minutes ago UTC".format(amount)))
-            price_data = price_data.T
-            price_data = price_data.astype(float)
-            
-            labeled_price_data['time'] = np.array(price_data[0])
-            labeled_price_data['open'] = np.array(price_data[1])
-            labeled_price_data['high'] = np.array(price_data[2])
-            labeled_price_data['low'] = np.array(price_data[3])
-            labeled_price_data['close'] = np.array(price_data[4])
-            labeled_price_data['volume'] = np.array(price_data[5])
-            
-            klines[symbol] = labeled_price_data  
-            
-        self.dataset_klines = klines
-        if return_data:
-            return self.dataset_klines
-    
-    
-    def get_second_prices_dataset(self,symbols,amount,return_data = False):
-        
-        '''
-        
-        Parameters
-        ----------
-        symbols : Array of strincg
-            An array of the required token prices e.g BTCUSDT.
-        amount : Integer
-            The amount of historical datapoints you require.
-
-        Returns
-        -------
-        klines : Dictonary
-            A Dictonary of the historical price data.
-            This is stored as a 2d dictionary of values over the given interval.
-            e.g klines['BTCUSDT']['open'] is a 1d numpy array of open prices over the interval
-
-        '''
-        assert isinstance(symbols, tuple) and all(isinstance(item, str) for item in symbols), "symbols must be a tuple containing only strings"
-        assert isinstance(amount, int), "amount must be an integer"
-        
-        klines = {}
-    
-        for symbol in symbols:
-            print('Fetching {0} second prices for the last {1} seconds'.format(symbol,amount))
-            labeled_price_data = {}
-            price_data = np.array(self.client.get_historical_klines(symbol, Client.KLINE_INTERVAL_1SECOND, "{0} seconds ago UTC".format(amount)))
-            price_data = price_data.T
-            price_data = price_data.astype(float)
-            
-            labeled_price_data['time'] = np.array(price_data[0])
-            labeled_price_data['open'] = np.array(price_data[1])
-            labeled_price_data['high'] = np.array(price_data[2])
-            labeled_price_data['low'] = np.array(price_data[3])
-            labeled_price_data['close'] = np.array(price_data[4])
-            labeled_price_data['volume'] = np.array(price_data[5])
-            
-            klines[symbol] = labeled_price_data  
-            
-        self.dataset_klines = klines
-        if return_data:
-            return self.dataset_klines
-        
-        
-        
+ 
     def align_time_series(self,pair,return_data=False):
         """
         Parameters
@@ -290,7 +204,7 @@ class binance_trading_env:
                 return aligned_klines
             
             
-    def get_prices(self,symbols,amount,return_data=False):
+    def get_historical_prices(self,symbols,amount,return_data=False):
         """
         Parameters
         ----------
