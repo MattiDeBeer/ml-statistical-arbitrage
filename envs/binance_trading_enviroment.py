@@ -5,85 +5,53 @@ import copy
 from nolds import hurst_rs
 
 """
+Desctiprion
+-----------
+This is an object that simulates a trading enviroment.
+It uses either generated data or historical price data.
+
+
 EXAMPLE USAGE
+.get_sin_wave_dataset(window_length) or .get_complex_sin_wave_dataset()
+Initialises the model with generated price data for a token 'SIN'.
+Hyperparameters such as dataset length and bin size can be specified as arguments.
 
-#ensure a file called keys.txt is in the local directory and contains binance keys
-#creates a wrapper object
-wrapper = api_wrapper() 
-
-
-#gets and stores specified price dataset in wrapper.dataset_klines from binance
-wrapper.get_second_prices_dataset((token1, token2, . . . ), window_length)
+self.time = 0
+starts the models internal time at the start of the dataset
 
 
-#retrieves data from wrapper object
-price_data = wrapper.get_prices(('BTCUSDT','SOLUSDT'), 100,return_data=True)
+.get_historical_prices(amount)
+Will return the specified amount of historical datapoints, with the 
+final index corresponding to the price at the current model timestep.
 
-This returns the price data for a certian winow for a specific time.
-Running this will return the first 100 prices in the dataset
-If time is 0, it will set time to 100 and return the 100 last prices
-This function follows the internal wrapper time, so if time is set to 1000,
-it will return the prices from indec 900 - 1000
+.step_time(amount)
+Increments the enviroments internal time.
+This simulates real world time passing
 
-#generates an arbritrage pair for a specified combination and specified hedge_ratio
-wrapper.generate_arbritrage_pair(token1+'-'+token2, hedge_ratio,return_data=True)
+.buy_token(token) .short_token(token) .close_all_positions()
+These are used to buy, sell and close the current positions at the models
+current price (specified by the dataset and it's internal time')
 
-This will return the arbitrage of the recent prices as specified in the code above
+.align_timeseries(series1,series2)
+Aligns the timeseries data such that each index corresponds to the same time.
 
-#Gets current token price in terms of the internal time
-price = wrapper.get_current_price('BTCUSDT') 
 
-#steps model time forward by 10 datapoints
-wrapper.step_time(10)
 
-#Buys amount of token at current price
-wrapper.buy_token(token,amount)
-
-amount is specified in USD, and transaction fees are accounted for
-
-#Shorts specified USD value of token, including transcation fees
-wrapper.short_token(token,amount)
-
-#closes all currently open positions
-wrapper.close_all_positions
-
-for example, it will cover any shorts by buying the token, and selling any held tokens
 """
 
-
 class BinanceTradingEnv: 
-    '''
-    Defines a wrapper object for the binance api
-    '''
-    def __init__(self,key_filename = 'keys.txt'):
+   
+    def __init__(self):
         
         #The instantiation of the client is not serialisable. so this has been commented out
         #funcitonality for realtime binance data will be added later
-        '''
+        """
         Initilises a wrapper with the binance api client using the keys
 
         Returns
-        -------#creates a binance client object for data collection
-        self.client = Client(self.__api_key, self.__api_secret)
-        None.
-
-        '''
-
-        """
-        #reads keys from file
-        try:
-            with open(key_filename) as key_file:
-                key = key_file.readline().strip('\n')
-                secret = key_file.readline().strip('\n')
-
-            self.__api_key = key
-            self.__api_secret = secret
-
-            #creates a binance client object for data collection
-            self.client = Client(self.__api_key, self.__api_secret)
-        except:
-            print('No keys.txt file found and binance client could not be established')
-            print('The object was initialised, but only generated data can be used.')
+        -------
+        None
+        
         """
 
         #spcifies the model starting time
@@ -119,7 +87,26 @@ class BinanceTradingEnv:
         
         
     def get_complex_sin_wave_dataset(self, num_data_points, noise = 0,bin_size = 10,return_data = False):
-        
+        """
+
+        Parameters
+        ----------
+        num_data_points : int
+            The number of historical datapoints to be used
+        noise : float, optional
+            The madnitude of noise to be used by the model. The default is 0.
+        bin_size : int, optional
+            The amount of points samples over so sample the high, low, open and close from.
+            The default is 10.
+        return_data : bool, optional
+            Specifies if the generated dataset should be returned. The default is False.
+
+        Returns
+        -------
+        dict
+            The generated dataset.
+
+        """
 
         number_of_waves = np.random.randint(low=2, high = 5)
         y = np.zeros(num_data_points*bin_size)
@@ -193,9 +180,6 @@ class BinanceTradingEnv:
         
             # Find the common time values
             common_times = np.intersect1d(time1, time2)
-        
-            # Helper function to filter a dictionary by the common time values
-            
         
             # Filter both dictionaries
             aligned_dict1 = filter_dict(dict1, common_times)
@@ -292,15 +276,15 @@ class BinanceTradingEnv:
             return self.klines
         
             
-    def generate_arbritrage_pair(self,pair,alpha,lag = 0,return_data=False):
+    def generate_arbritrage_pair(self,pair,alpha=None,lag = 0,return_data=False):
         """
 
         Parameters
         ----------
         pair : str
-            The pair you whish to arbritrage. Formatted as token-token2
+            The pair you whish to arbritrage. Formatted as 'token1-token2'
         alpha : float
-            The hedge ratio
+            The hedge ratio, optional
         lag : int, optional
             The amout you whish the first timeseries to lag the second. The default is 0.
         return_data : bool, optional
@@ -313,7 +297,7 @@ class BinanceTradingEnv:
             
         Description
         -----------
-        This funciton generates an arbrotrage timeseries for a given metric.
+        This funciton generates an arbritrage timeseries for a given metric.
         It uses the data gathered by the self.get_prices() function,
         so this function must be run first.
 
@@ -324,13 +308,17 @@ class BinanceTradingEnv:
         
         if not hasattr(self, 'arbritrage_pairs'):
             self.arbritrage_pairs = {}
+            
+        if alpha is None:
+            alpha = np.mean(np.array(self.klines[ticker1]['open'])) / np.mean(np.array(self.klines[ticker2]['open']))
         
         tmp_dict = {}
         for key in self.klines[ticker1]:
                 
             series1 = np.array(self.klines[ticker1][key])
             series2 = np.array(self.klines[ticker2][key])
-        
+            
+            
             if lag != 0:
                 series1 = series1[lag:]
                 series2 = series2[:-lag]
