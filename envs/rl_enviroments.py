@@ -31,14 +31,14 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         
         #set current funds and transaction fees
         self.money = 50
-        self.transaction_percentage = 0
+        self.transaction_percentage = 0.01
         
         #set previous portfolio value
         self.previous_value = 50
         
         # Setup action decay
         self.action_decay_constant = np.log(2) / 10
-        self.action_decay_premultiplier = 0.2
+        self.action_decay_premultiplier = 0
         self.steps_since_action = 0
         
         # Initialize state
@@ -49,7 +49,9 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         self.current_step = 0
         
     def reward_function(self, current_value, previous_value, action):
+        
         reward = np.log(current_value / previous_value)
+        
         action_decay = np.array([self.action_decay_premultiplier * np.exp(-1 * self.steps_since_action * self.action_decay_constant)])
         
         
