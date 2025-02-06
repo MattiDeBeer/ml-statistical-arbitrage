@@ -117,6 +117,38 @@ class BinanceTradingEnv:
         if return_data:
             return self.dataset_klines
         
+        
+    def get_complex_sin_wave_dataset(self, num_data_points, random_seed = 1, noise = 0,bin_size = 10,return_data = False):
+        
+        np.random.seed(seed = random_seed)
+        number_of_waves = np.random.randint(low=2, high = 5)
+        y = np.zeros(num_data_points*bin_size)
+        x = np.linspace(0,1,num_data_points*bin_size)
+        
+        for i in range(0,number_of_waves):
+            amplitude = np.random.uniform(0,1)
+            period = np.random.uniform(0.1,0.3)
+            y += amplitude * np.sin(2 * np.pi * x / period)
+            
+        y = 1 + y/(number_of_waves*2)
+            
+        y += noise*np.random.uniform(0,1,num_data_points*bin_size)
+        
+        klines = {}
+        
+        klines['open'] = y[0::bin_size]
+        klines['close'] = y[bin_size - 1 :: bin_size]
+        binned_data = y.reshape(-1,bin_size)
+        klines['high'] = np.max(binned_data, axis=1)
+        klines['low'] = np.min(binned_data, axis=1)
+        
+        self.dataset_klines = {}
+        self.dataset_klines['SIN'] = klines
+        self.max_time = num_data_points
+        
+        if return_data:
+            return self.dataset_klines
+        
  
     def align_time_series(self,pair,return_data=False):
         """
