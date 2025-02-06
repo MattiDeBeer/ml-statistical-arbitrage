@@ -10,7 +10,7 @@ from envs.binance_trading_enviroment import BinanceTradingEnv
 class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
     """Custom Trading Environment following Gymnasium interface"""
 
-    def __init__(self, window_length = 10, dataset_length = 1000):
+    def __init__(self, window_length = 10, dataset_length = 100):
         super().__init__()
     
         # Load dataset form inherited trading env
@@ -80,12 +80,13 @@ class RlTradingEnv(BinanceTradingEnv,gymnasium.Env):
         
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state"""
+        super().reset(seed=seed) 
         self.close_all_positons()
         self.token_amount_held = 0
         self.time = self.window_length + 1
         self.bought_last_time = 0
         self.steps_since_action = 0
-        self.get_complex_sin_wave_dataset(self.dataset_length, random_seed = seed)
+        self.get_complex_sin_wave_dataset(self.dataset_length)
         self.state = self.generate_observation()
         self.current_step = 0
         self.token_amount_held = 0

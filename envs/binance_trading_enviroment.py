@@ -94,7 +94,7 @@ class BinanceTradingEnv:
         self.transaction_percentage = 0.001
         #creates an empty dictionary for model positions
         self.positions = {}
-        print("Binance Enviroment initialized")
+        #print("Binance Enviroment initialized")
         
         
     def get_sin_wave_dataset(self, num_data_points, period = 0.01, noise = 0,bin_size = 10,return_data = False):
@@ -118,9 +118,9 @@ class BinanceTradingEnv:
             return self.dataset_klines
         
         
-    def get_complex_sin_wave_dataset(self, num_data_points, random_seed = 1, noise = 0,bin_size = 10,return_data = False):
+    def get_complex_sin_wave_dataset(self, num_data_points, noise = 0,bin_size = 10,return_data = False):
         
-        np.random.seed(seed = random_seed)
+
         number_of_waves = np.random.randint(low=2, high = 5)
         y = np.zeros(num_data_points*bin_size)
         x = np.linspace(0,1,num_data_points*bin_size)
