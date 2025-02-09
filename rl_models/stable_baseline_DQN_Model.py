@@ -42,75 +42,51 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 50):
         super(DictFeatureExtractor, self).__init__(observation_space, features_dim)
         
-        #add self detection of disc dimension size later
-        options = 2
-        
-        
-        total_in_dim = 0
-        cont_dim_size = 0
-        cont_dim_amount = 0
-        disc_amount = 0
-        keys_cont = []
-        keys_disc = []
-        
-        for key, subspace in observation_space.spaces.items():
-            if type(subspace).__name__ == 'Box':
-                if cont_dim_size == 0:
-                    cont_dim_size = subspace.shape[0]
-                    cont_dim_amount += 1
-                    keys_cont.append(key)
-                else:
-                    assert cont_dim_size == subspace.shape[0], "Continious Subspaces must have same dimension"
-                    cont_dim_amount += 1
-                    keys_cont.append(key)
-                        
-            elif type(subspace).__name__ == 'Discrete':
-                disc_amount += 1
-                keys_disc.append(key)
-                
-            else:
-                raise Exception(f"Sorry, {type(subspace).__name__} spaces are not supported yet")
-            
-        if (features_dim - (disc_amount*options)) % cont_dim_amount == 0:
-            out_dim = int((features_dim - (disc_amount*options)) / cont_dim_amount)
-        else:
-            raise Exception("You must select a compatible feature dimension size")
+        cont_dim = 10
+        disc_amount = 2
             
         self.cont_net = nn.Sequential(
-             nn.Linear(cont_dim_size, 50),
-             nn.Tanh(),
-             nn.Linear(50, out_dim),  # Output feature vector
-             nn.Tanh()
+             nn.Linear(cont_dim, 10),
+             nn.ReLU(),
          )
          
+        
         self.disc_net = nn.Sequential(
-            nn.Identity(),
-            nn.Flatten(start_dim=1)
+            nn.Flatten(start_dim=1),
+            nn.Linear(disc_amount*2,4),
+            nn.ReLU()
             )
          
-        extractors = {}
-        for key in keys_cont:
-            extractors[key] = self.cont_net
-         
-        for key in keys_disc:
-            extractors[key] = self.disc_net
+        self.combiner_net = nn.Sequential(
+           nn.Linear(24,features_dim),
+           nn.ReLU()
+           )
         
-        self.extractors = nn.ModuleDict(extractors)
+        self.lstm = nn.LSTM(1, 20, 1, batch_first=True)
       
         
         
     def forward(self, observations):
-        encoded_tensor_list = []
 
-        # self.extractors contain nn.Modules that do all the processing.
-        for key, extractor in self.extractors.items():
-            encoded_tensor_list.append(extractor(observations[key]))
-            
-        # Return a (B, self._features_dim) PyTorch tensor, where B is batch dimension
-        return cat(encoded_tensor_list, dim=1)
+        disc_obs = cat([
+               observations['is_bought'].float().reshape(-1, 2),
+               observations['previous_action'].float().reshape(-1, 2)
+            ], dim=1)
+        
+        cont_obs = observations['open'].unsqueeze(-1)
+        
+        lstm_out, (hidden,cell) = self.lstm(cont_obs)
+        
+        cont_obs_out = hidden[-1]
+        
+        #cont_obs_out = self.cont_net(cont_obs)
+        disc_obs_out = self.disc_net(disc_obs)
+    
+        Y = cat([cont_obs_out, disc_obs_out],dim = 1)
 
-
-
+        Z = self.combiner_net(Y)
+        
+        return Z
 
 
 class DqnModelCont:
@@ -214,7 +190,7 @@ class DqnModelDict:
         # Define policy kwargs with custom feature extractor
         policy_kwargs = dict(
             features_extractor_class=DictFeatureExtractor,
-            features_extractor_kwargs=dict(features_dim=128)  # Adjust feature size
+            features_extractor_kwargs=dict(features_dim=10)  # Adjust feature size
         )
         
         self.model = DQN(
