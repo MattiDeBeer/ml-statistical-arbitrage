@@ -34,11 +34,11 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
         self.token = 'SIN'
         
         #set current funds and transaction fees
-        self.money = 50
+        self.money = 20
         self.transaction_percentage = 0.01
         
         #set previous portfolio value
-        self.previous_value = 50
+        self.previous_value = 20
         
         # Setup action decay
         self.action_decay_constant = np.log(2) / 10
