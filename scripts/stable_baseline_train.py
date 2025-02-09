@@ -14,5 +14,4 @@ Model = DqnModelDict(RlTradingEnvDict)
 
 Model.train(10000)
 
-#%%
 Model.plot_episode()
