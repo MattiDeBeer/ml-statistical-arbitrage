@@ -5,8 +5,11 @@ Created on Tue Dec 17 18:49:04 2024
 @author: matti
 """
 import matplotlib.pyplot as plt
+import numpy as np
+import copy
 from api_wrappers.binance_api_simulation_wrapper import binance_api
 from trading_models.simple_stat_arb import simple_stat_arb_trader
+
 
 #creates binance api and populates with training data
 wrapper = binance_api() 
@@ -15,10 +18,11 @@ wrapper = binance_api()
 token1 = 'BTCUSDT'
 token2 = 'ETHUSDT'
 
-wrapper.get_minute_prices_dataset((token1,token2),10000,return_data=True)
+wrapper.get_hour_prices_dataset((token1,token2),500,return_data=True)
    
 wrapper.align_time_series('all')
 
+#%%
 
 #define the context window length, this is the historical window over which the hegde ratio is calculated
 window_length = 1000
@@ -30,7 +34,7 @@ starting_funds = 100
 risk = 0.2
 
 #set transaction fees
-wrapper.transaction_percentage = 0.0001
+wrapper.transaction_percentage = 0.001
 
 
 #define the position entry and exit boudns or the arb value (these are symmetric)
@@ -45,7 +49,7 @@ trader = simple_stat_arb_trader(wrapper, [enter_bound,exit_bound,risk,token1, to
 #set flag that allows trading
 
 #trades for 50000 minutes
-trader.start_trading(10000)
+trader.start_trading_arb_exit(250000)
         
 
 #close all positions if simulation has exited
@@ -58,5 +62,9 @@ percentage_gain =round( 100* (wrapper.money - starting_funds)/starting_funds, 4)
 print(f"{trader.trades_number} trades performed, made a {percentage_gain}% gain")
 
 trade_logger = trader.trades_logger
+
+#%%
+
+plt.plot(trader.funds_tracker[0],trader.funds_tracker[1])
 
     
