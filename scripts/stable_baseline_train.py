@@ -12,6 +12,7 @@ from envs.rl_enviroments import RlTradingEnvContinious, RlTradingEnvDict, TestEn
 
 Model = DqnModelDict(RlTradingEnvDict)
 
-Model.train(10000)
+Model.train(100000)
 
+#%%
 Model.plot_episode()

@@ -194,7 +194,7 @@ class DqnModelDict:
         )
         
         self.model = DQN(
-            policy="MultiInputPolicy",  # Use MLPPolicy for continuous observation space
+            policy="MultiInputPolicy",  # Use MLPPolicy for discrete observation space
             env=self.enviroment_dv,
             policy_kwargs=policy_kwargs,
             verbose=2,
