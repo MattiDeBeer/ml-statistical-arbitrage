@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import copy
 from nolds import hurst_rs
+import h5py
 
 """
 Desctiprion
@@ -31,12 +32,6 @@ This simulates real world time passing
 .buy_token(token) .short_token(token) .close_all_positions()
 These are used to buy, sell and close the current positions at the models
 current price (specified by the dataset and it's internal time')
-
-.align_timeseries(series1,series2)
-Aligns the timeseries data such that each index corresponds to the same time.
-
-
-
 """
 
 class BinanceTradingEnv: 
@@ -65,10 +60,42 @@ class BinanceTradingEnv:
         #print("Binance Enviroment initialized")
         
         
-    def get_sin_wave_dataset(self, num_data_points, period = 0.01, noise = 0,bin_size = 10,return_data = False):
+    def __repr__(self):
+        representation = {}
+        if not hasattr(self,'dataset_filename'):
+            representation['Dataset file'] = None
+        else:
+            representation['Dataset file'] = self.dataset_filename
         
+        if not hasattr(self,'dataset_klines'):
+            representation['Loaded tokens'] = None
+        else:
+            representation['Loaded Tokens'] =list(self.dataset_klines.keys())
+            
+        if hasattr(self, 'klines'): 
+            representation['Tokens loaded in episode'] = list(self.klines.keys())
+            representation['Current (open) prices'] = [{symbol: self.get_current_price(symbol)} for symbol in list(self.klines.keys())]
+            try:
+                representation['Previous (open) prices'] = [{symbol: self.get_historical_prices(symbol,5,return_data=True)[symbol]['open']} for symbol in list(self.klines.keys())]
+            except Exception as e:
+                representation['Previous (open) prices'] = [{symbol: 'Insufficent time for 5 historical pices'} for symbol in list(self.klines.keys())]
+                
+        else:
+            representation['Tokens loaded in episode'] = None
+            representation['Current (open) prices'] = None
+            
+        representation['Time'] = self.time
+        representation['Transaction Prececntage'] = self.transaction_percentage
+        representation['Money'] = self.money
+        representation['Open positions'] = self.positions
+        
+        return str(representation)
+        
+        
+    def get_sin_wave_dataset(self, num_data_points, period = 0.01, noise = 0,bin_size = 10,return_data = False):
         x = np.linspace(0,1,num_data_points*bin_size)
         y = 0.5*np.sin(2 * np.pi * x / period) + np.random.uniform(0,noise,num_data_points*bin_size) + (1+noise)*np.ones(num_data_points*bin_size)
+        
         
         klines = {}
         
@@ -78,12 +105,14 @@ class BinanceTradingEnv:
         klines['high'] = np.max(binned_data, axis=1)
         klines['low'] = np.min(binned_data, axis=1)
         
-        self.dataset_klines = {}
-        self.dataset_klines['SIN'] = klines
+        if not hasattr(self, 'klines'):
+            self.klines = {}
+            
+        self.klines['SIN'] = klines
         self.max_time = num_data_points
         
         if return_data:
-            return self.dataset_klines
+            return self.klines
         
         
     def get_complex_sin_wave_dataset(self, num_data_points, noise = 0,bin_size = 10,return_data = False):
@@ -129,97 +158,44 @@ class BinanceTradingEnv:
         klines['high'] = np.max(binned_data, axis=1)
         klines['low'] = np.min(binned_data, axis=1)
         
-        self.dataset_klines = {}
-        self.dataset_klines['SIN'] = klines
+        if not hasattr(self, 'klines'):
+            self.klines = {}
+            
+        self.klines['SIN'] = klines
         self.max_time = num_data_points
         
         if return_data:
-            return self.dataset_klines
+            return self.klines
         
- 
-    def align_time_series(self,pair,return_data=False):
-        """
-        Parameters
-        ----------
-        pair : string
-            The token pair you which to align, formatted at token1-token2
-            passing pair = 'all' will align all token datasets to a common time
-        return_data : book, optional
-            Specifies if you which to return the aligned data The default is False.
+    def load_token_dataset(self, filename,directory = 'data/'):
+        self.dataset_filename = directory+filename
+        if not hasattr(self,'dataset_klines'):
+            self.dataset_klines = {}
+        with h5py.File(directory+filename, 'r') as f:
+            for token in list(f.keys()):
+                token_klines = {}
+                ### ADD CHECK TO ENSURE ALL TIMESERIES HAVE THE SAME LENGTH ###
+                for timeseries_key in list(f[token].keys()):
+                    token_klines[timeseries_key] = f[token][timeseries_key][:]
+                    self.dataset_length = token_klines[timeseries_key].shape[0]
+                self.dataset_klines[token] = token_klines
+                
+    def get_token_episode(self,token,length):
+        if not hasattr(self,'episode_klines'):
+            self.klines = {}
+            
+        ### THIS NEEDS TO BE CHANGED TO ALLOW FOR THE COLLECTION OF MULTIPLE TOKENS ###
+        klines = {}
+        start = np.random.randint(0,self.dataset_length - length - 1)
+        for key in self.dataset_klines[token]:
+            klines[key] = self.dataset_klines[token][key][start:start+length]
+            self.max_time = klines[key].shape[0]
+        
+        self.klines[token] = klines
+            
+        
 
-        Returns
-        -------
-        TYPE: dict
-            A dict of all the price data, now aligned in time.
-            
-        Description
-        -----------
-        This function aligns the price data in time, so each index of each token corresponds
-        to the same time.
-        This overwrites the data in self.dataset_klines
 
-        """
-        def filter_dict(data_dict, common_times):
-            time_array = np.array(data_dict['time'])
-            indices = np.isin(time_array, common_times)
-            filtered_dict = {'time': time_array[indices]}
-            for key, values in data_dict.items():
-                if key != 'time':
-                    filtered_dict[key] = np.array(np.array(values)[indices])
-                    
-            return filtered_dict
-        
-        if pair != 'all':
-            ticker1, ticker2 = pair.split("-")
-            dict1 = self.dataset_klines[ticker1]
-            dict2 = self.dataset_klines[ticker2]
-        
-            # Extract the time entries
-            time1 = np.array(dict1['time'])
-            time2 = np.array(dict2['time'])
-        
-            # Find the common time values
-            common_times = np.intersect1d(time1, time2)
-        
-            # Filter both dictionaries
-            aligned_dict1 = filter_dict(dict1, common_times)
-            aligned_dict2 = filter_dict(dict2, common_times)
-            
-            self.dataset_klines[ticker1] = aligned_dict1
-            self.dataset_klines[ticker2] = aligned_dict2
-            self.max_time = len(common_times)
-        
-            if return_data:
-                return aligned_dict1, aligned_dict2
-        
-        else:
-            # Extract the 'time' arrays from all dictionaries
-            all_times = [set(np.array(data['time'])) for data in self.dataset_klines.values()]
-        
-            # Find the common time values across all dictionaries
-            common_times = sorted(set.intersection(*all_times))
-        
-            # Helper function to filter a single dictionary by the common times
-            def filter_dict(data_dict, common_times):
-                time_array = np.array(data_dict['time'])
-                indices = np.isin(time_array, common_times)
-                filtered_dict = {'time': time_array[indices]}
-                for key, values in data_dict.items():
-                    if key != 'time':
-                        filtered_dict[key] = np.array(values)[indices]
-                return filtered_dict
-        
-            # Align all sub-dictionaries to the common time indices
-            aligned_klines = {
-                ticker: filter_dict(data, common_times) for ticker, data in self.dataset_klines.items()
-            }
-            self.max_time = len(common_times)
-            self.dataset_klines = aligned_klines
-        
-            if return_data:
-                return aligned_klines
-            
-            
     def get_historical_prices(self,symbols,amount,return_data=False):
         """
         Parameters
@@ -247,36 +223,37 @@ class BinanceTradingEnv:
         if self.time > self.max_time:
             return None
         
-        if not hasattr(self,'klines'):
-            self.klines = {}
+        if not hasattr(self,'historical_klines'):
+            self.historical_klines = {}
         
         if self.time == 0:
-            self.time = amount
+            raise ValueError(f"You requested {amount} datapoints, at time {self.time}. Ensure your historical request is smaller than the current time")
             
             
         if isinstance(symbols,str):
-            assert symbols in self.dataset_klines.keys(), f"No data with key {symbols} has been found"
+            assert symbols in self.klines.keys(), f"No data with key {symbols} has been found"
             tmp_dict = {}
-            for key, values in self.dataset_klines[symbols].items():
-                tmp_dict[key] = values[self.time-amount:self.time]
+            for key, values in self.klines[symbols].items():
+                tmp_dict[key] = values[1+self.time-amount:self.time+1]
                 
-            self.klines[symbols] = tmp_dict
+            self.historical_klines[symbols] = tmp_dict
             
         else:
         
             for symbol in symbols:
-                assert symbol in self.dataset_klines.keys(), f"No data with key {symbol} has been found"
+                assert symbol in self.klines.keys(), f"No data with key {symbol} has been found"
                 tmp_dict = {}
-                for key, values in self.dataset_klines[symbol].items():
+                for key, values in self.klines[symbol].items():
                     tmp_dict[key] = values[self.time-amount:self.time]
                     
-                self.klines[symbol] = tmp_dict
+                self.historical_klines[symbol] = tmp_dict
             
         if return_data:
-            return self.klines
+            return self.historical_klines
         
-            
-    def generate_arbritrage_pair(self,pair,alpha=None,lag = 0,return_data=False):
+    
+    ### DEPRICATED FUNCTION ###
+    def generate_arbritrage_pair(self,pair,alpha=None,lag = 0,return_data=False,price_key = 'open'):
         """
 
         Parameters
@@ -310,7 +287,7 @@ class BinanceTradingEnv:
             self.arbritrage_pairs = {}
             
         if alpha is None:
-            alpha = np.mean(np.array(self.klines[ticker1]['open'])) / np.mean(np.array(self.klines[ticker2]['open']))
+            alpha = np.mean(np.array(self.klines[ticker1][price_key])) / np.mean(np.array(self.klines[ticker2][price_key]))
         
         tmp_dict = {}
         for key in self.klines[ticker1]:
@@ -353,7 +330,6 @@ class BinanceTradingEnv:
     
     def get_current_price(self,symbol,key = 'open'):
         """
-        
 
         Parameters
         ----------
@@ -368,13 +344,14 @@ class BinanceTradingEnv:
             The current token price as determined by the internal time
 
         """
-        if not symbol in self.dataset_klines.keys():
+        if not symbol in self.klines.keys():
             print("No data exists for this token")
+            return None
         else:
-            return self.dataset_klines[symbol][key][self.time-1]
+            return self.klines[symbol][key][self.time]
         
         
-    def buy_token(self,token,amount,return_data=False):
+    def buy_token(self,token,amount,return_data=False,verbose=False):
         """
         Parameters
         ----------
@@ -392,7 +369,7 @@ class BinanceTradingEnv:
 
         """
         
-        if not token in self.dataset_klines.keys():
+        if not token in self.klines.keys():
             print('No token exists with this name')
         else:
             
@@ -405,13 +382,14 @@ class BinanceTradingEnv:
                 self.positions[token] += token_amount
             else:
                 self.positions[token] = token_amount
-                
-            #print(f"Bought {token_amount} of {token} at ${price} (cost ${amount})")
+             
+            if verbose:
+                print(f"Bought {token_amount} of {token} at ${price} (cost ${amount})")
             
             if return_data:
                 return token_amount
                 
-    def short_token(self,token,amount,return_data = False):
+    def short_token(self,token,amount,return_data = False,verbose=False):
         """
         Parameters
         ----------
@@ -428,7 +406,7 @@ class BinanceTradingEnv:
             The quantity of the token you shorted, accounting for transaciton costs
 
         """
-        if not token in self.dataset_klines.keys():
+        if not token in self.klines.keys():
             print('No token exists with this name')
         else:
             
@@ -437,7 +415,9 @@ class BinanceTradingEnv:
             token_amount = discounted_amount /price
             self.money += discounted_amount
             
-            #print(f"Shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
+            if verbose:
+                print(f"Shorted {token_amount} of {token} at ${price} (position value ${discounted_amount})")
+            
             if token in self.positions.keys():
                 self.positions[token] -= token_amount
             else:
@@ -462,14 +442,14 @@ class BinanceTradingEnv:
         """
         if self.time + time_step >= self.max_time:
             #print(f"Max time exceeded, setting time to final dataset time ({self.max_time})")
-            self.time = self.max_time
+            self.time = self.max_time-1
             return False
         else:
             self.time += time_step
             return True
         
     
-    def close_all_positons(self):
+    def close_all_positions(self,verbose = False):
         """
         Returns
         -------
@@ -489,15 +469,16 @@ class BinanceTradingEnv:
                 gain = token_amount * token_price
                 discounted_gain = gain - gain*self.transaction_percentage
                 self.money += discounted_gain
-                #print(f"Sold {token_amount} {key} for ${discounted_gain}")
+                if verbose:
+                    print(f"Sold {token_amount} {key} for ${discounted_gain}")
             else:
                 token_amount = -1*token_amount
                 loss = token_amount * token_price
                 additional_loss = loss + loss*self.transaction_percentage
                 self.money -= additional_loss
-                #print(f"Bought {token_amount} {key} for ${additional_loss}")
-            
-            
+                if verbose:
+                    print(f"Bought {token_amount} {key} for ${additional_loss}")
+
         self.positions = {}
         
     
