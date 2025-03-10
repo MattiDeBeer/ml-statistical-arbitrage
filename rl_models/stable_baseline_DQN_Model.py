@@ -79,7 +79,6 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
         
         cont_obs_out = hidden[-1]
         
-        #cont_obs_out = self.cont_net(cont_obs)
         disc_obs_out = self.disc_net(disc_obs)
     
         Y = cat([cont_obs_out, disc_obs_out],dim = 1)
@@ -142,7 +141,7 @@ class DqnModelCont:
 
         # 5. Print the total reward for this episode
         print(f"Total reward for this episode: {total_reward}")
-        
+
         # Create the figure and axis
         plt.figure(figsize=(10, 6))
         
@@ -236,7 +235,7 @@ class DqnModelDict:
 
         # 5. Print the total reward for this episode
         print(f"Total reward for this episode: {total_reward}")
-        
+
         # Create the figure and axis
         plt.figure(figsize=(10, 6))
         
