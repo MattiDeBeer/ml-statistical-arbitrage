@@ -40,11 +40,6 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
         #set previous portfolio value
         self.previous_value = 20
         
-        # Setup action decay
-        self.action_decay_constant = np.log(2) / 10
-        self.action_decay_premultiplier = 0
-        self.steps_since_action = 0
-        
         # Initialize state
         self.bought_last_time = 0
         self.token_amount_held = 0
@@ -55,9 +50,6 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
     def reward_function(self, current_value, previous_value, action):
         
         reward = np.log(current_value / previous_value)
-        
-        action_decay = np.array([self.action_decay_premultiplier * np.exp(-1 * self.steps_since_action * self.action_decay_constant)])
-        
         
         #ensure reward cannot be too large
         if reward > 100:
@@ -80,7 +72,7 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state"""
         super().reset(seed=seed) 
-        self.close_all_positons()
+        self.close_all_positions()
         self.token_amount_held = 0
         self.time = self.window_length + 1
         self.bought_last_time = 0
@@ -106,7 +98,7 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
             # Sell if token is held
             if self.token_amount_held > 0:
                 self.token_amount_held = 0
-                self.close_all_positons()
+                self.close_all_positions()
                 self.current_value = self.get_current_portfolio_value()
                 reward = self.reward_function(self.current_value, self.previous_value, action)
                 self.step_time(1)
@@ -213,7 +205,7 @@ class RlTradingEnvDict(BinanceTradingEnv,gymnasium.Env):
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state"""
         super().reset(seed=seed) 
-        self.close_all_positons()
+        self.close_all_positions()
         self.is_bought = 0
         self.time = self.window_length + 1
         self.get_complex_sin_wave_dataset(self.dataset_length)
@@ -235,7 +227,7 @@ class RlTradingEnvDict(BinanceTradingEnv,gymnasium.Env):
             # Sell if token is held
             if self.is_bought == 1:
                 self.is_bought = 0
-                self.close_all_positons()
+                self.close_all_positions()
                 self.current_value = self.get_current_portfolio_value()
                 reward = self.reward_function(self.current_value, self.previous_value)
                 self.step_time(1)
@@ -259,6 +251,134 @@ class RlTradingEnvDict(BinanceTradingEnv,gymnasium.Env):
         info = {}
         
         return self.state, reward, done, truncated, info
+
+
+
+
+
+
+
+class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
+    """Custom Trading Environment following Gymnasium interface"""
+
+    def __init__(self, window_length = 10, episode_length = 1000):
+        super().__init__()
+    
+        # Load dataset form inherited trading env
+        self.episode_length = episode_length
+        
+        #load dataset
+        self.load_token_dataset('dataset_100000_1m.h5')
+        
+        # Define action and observation space
+        self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Buy/Sell
+        n = window_length
+        
+        #Define observation space
+        self.observation_space = spaces.Dict({
+                'open': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
+                #'close': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
+                'previous_action' : spaces.Discrete(2),
+                'is_bought' : spaces.Discrete(2),
+                })
+
+        #define data window length
+        self.window_length = window_length
+        
+        #set token
+        self.token = 'BTCUSDT'
+        
+        #set transcation Percentage
+        self.transaction_percentage = 0.01
+        
+        #call reset function
+        self.state, _ = self.reset()
+        
+    def reward_function(self, current_value, previous_value):
+        
+        #calculate reward
+        reward = np.log(current_value / previous_value)
+        
+        #ensure reward cannot be too large
+        if reward > 100:
+            reward = 100
+        elif reward < -100:
+            reward = 100
+        
+        return reward
+
+    def generate_observation(self,action):
+        state = {}
+        
+        current_data = self.get_historical_prices(self.token, self.window_length, return_data=True)[self.token]
+        
+        state['open'] = current_data['open']
+        #state['close'] = current_data['close']
+        state['previous_action'] = action
+        state['is_bought'] = self.is_bought
+        
+        return state
+        
+    def reset(self, seed=None, options=None):
+        """Reset the environment to the initial state"""
+        super().reset(seed=seed) 
+        #reset positions
+        self.close_all_positions()
+        self.is_bought = 0
+        
+        #set internal time
+        self.time = self.window_length + 1
+        
+        #load episode
+        self.get_token_episode(self.token,self.episode_length)
+        
+        #generate initial observation
+        self.state = self.generate_observation(0)
+        
+        #reset money values
+        self.money = 20
+        self.previous_value = 20
+        return self.state, {}
+
+    def step(self, action):
+        self.previous_value = self.get_current_portfolio_value()
+        
+        # Apply action
+        if action == 0:
+            pass
+            
+        else: 
+            # Sell if token is held
+            if self.is_bought == 1:
+                self.is_bought = 0
+                self.close_all_positions()
+                
+            else:
+                # Buy if token is not held
+                self.is_bought = 1
+                self.buy_token(self.token, 1)
+                
+        #step internal time
+        done = not self.step_time(1)  
+        
+        #calculate reward
+        self.current_value = self.get_current_portfolio_value()
+        reward = self.reward_function(self.current_value,self.previous_value)
+        
+        #generate next observation
+        self.state = self.generate_observation(action)
+        
+        # Return uselesss variables
+        truncated = False  
+        info = {}
+        
+        return self.state, reward, done, truncated, info
+    
+    
+    
+    
+    
+    
 
 class TestEnv(gymnasium.Env):
     def __init__(self):
