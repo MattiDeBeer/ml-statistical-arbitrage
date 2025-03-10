@@ -39,10 +39,10 @@ class LSTMAutoencoder(nn.Module):
 
 #define Fully connected autoencoder
 class FullyConectedAutoencoder(nn.Module):
-    def __init__(self, input_size, hidden_size, latent_size):
+    def __init__(self, input_size, latent_size):
         super(FullyConectedAutoencoder, self).__init__()
         
-        middle_dim = 15
+        middle_dim = 8
         self.encoder = nn.Sequential(
             nn.Linear(input_size,middle_dim),
             nn.Tanh(),

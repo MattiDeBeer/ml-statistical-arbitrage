@@ -46,13 +46,13 @@ def generate_data_GP(dataset_length,input_size,coherence_length = 50,noise = 0.1
 
 
 
-input_size = 50
-model = FullyConectedAutoencoder(input_size, 35, 30)
-
+input_size = 10
+model = FullyConectedAutoencoder(input_size, 5)
+noise = 0.5
 
 # Create TensorDataset and DataLoader
-train_X, train_Y = generate_data_GP(10000, 50,noise = 0.3)
-test_X, test_Y = generate_data_GP(2000, 50,noise = 0.3)
+train_X, train_Y = generate_data_GP(10000, input_size,noise = noise)
+test_X, test_Y = generate_data_GP(2000, input_size,noise = noise)
 train_X, train_Y, = torch.tensor(train_X,dtype=torch.float32), torch.tensor(train_Y,dtype=torch.float32)
 test_X, test_Y = torch.tensor(test_X,dtype=torch.float32), torch.tensor(test_Y,dtype=torch.float32)
 train_dataset = TensorDataset(train_X,train_Y)
@@ -69,7 +69,6 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 num_epochs = 50
 batch_size = 64
 
-# Assuming `train_loader` is already defined (from the previous code)
 for epoch in range(num_epochs):
     train_loss = 0.0
     test_loss = 0.0
@@ -135,7 +134,7 @@ with torch.no_grad():
     
 #%%
 #gp = GPDenoiser(50,0.3,0.4)
-sample_data , function = generate_data_GP(1,50,noise=0.2)
+sample_data , function = generate_data_GP(1,input_size,noise=noise)
 sample_data = torch.tensor(sample_data,dtype=torch.float32)
 prediciton = model(sample_data)
 
