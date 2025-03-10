@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 
 sys.path.append("../")
 from rl_models.stable_baseline_DQN_Model import DqnModelCont, DqnModelDict
-from envs.rl_enviroments import RlTradingEnvContinious, RlTradingEnvDict, TestEnv
+from envs.rl_enviroments import RlTradingEnvContinious, RlTradingEnvDict, TestEnv, RlTradingEnvBTC
 
 
 
-Model = DqnModelDict(RlTradingEnvDict)
+Model = DqnModelDict(RlTradingEnvBTC)
 
 Model.train(100000)
 
