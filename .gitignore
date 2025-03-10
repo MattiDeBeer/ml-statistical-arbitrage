@@ -15,6 +15,12 @@ venv/
 # API keys and sensitive data
 keys.txt
 
+#tensorboard verbosing
+dqn_tensorboard/
+
+#datasets
+data/
+
 # Other untracked files
 =2.0
 
