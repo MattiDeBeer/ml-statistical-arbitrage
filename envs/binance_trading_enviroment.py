@@ -1,8 +1,6 @@
 #from binance import Client, ThreadedWebsocketManager, ThreadedDepthCacheManager
 import numpy as np
-import matplotlib.pyplot as plt 
-import copy
-from nolds import hurst_rs
+from statsmodels.tsa.stattools import adfuller, coint
 import h5py
 
 """
@@ -61,6 +59,14 @@ class BinanceTradingEnv:
         
         
     def __repr__(self):
+        """
+
+        Returns
+        -------
+        string
+            A representation of the current state of the object.
+
+        """
         representation = {}
         if not hasattr(self,'dataset_filename'):
             representation['Dataset file'] = None
@@ -71,13 +77,14 @@ class BinanceTradingEnv:
             representation['Loaded tokens'] = None
         else:
             representation['Loaded Tokens'] =list(self.dataset_klines.keys())
+            representation['Available datasets'] = [list(self.dataset_klines[key].keys()) for key in list(self.klines.keys())]
             
         if hasattr(self, 'klines'): 
             representation['Tokens loaded in episode'] = list(self.klines.keys())
             representation['Current (open) prices'] = [{symbol: self.get_current_price(symbol)} for symbol in list(self.klines.keys())]
             try:
                 representation['Previous (open) prices'] = [{symbol: self.get_historical_prices(symbol,5,return_data=True)[symbol]['open']} for symbol in list(self.klines.keys())]
-            except Exception as e:
+            except:
                 representation['Previous (open) prices'] = [{symbol: 'Insufficent time for 5 historical pices'} for symbol in list(self.klines.keys())]
                 
         else:
@@ -180,54 +187,68 @@ class BinanceTradingEnv:
                     self.dataset_length = token_klines[timeseries_key].shape[0]
                 self.dataset_klines[token] = token_klines
                 
-    def get_token_episode(self,token,length):
+    ### Need to change klines to episode_klines ###
+    def get_token_episode(self,tokens,length,return_data = False):
         if not hasattr(self,'episode_klines'):
             self.klines = {}
             
-        ### THIS NEEDS TO BE CHANGED TO ALLOW FOR THE COLLECTION OF MULTIPLE TOKENS ###
-        klines = {}
-        start = np.random.randint(0,self.dataset_length - length - 1)
-        for key in self.dataset_klines[token]:
-            klines[key] = self.dataset_klines[token][key][start:start+length]
-            self.max_time = klines[key].shape[0]
-        
-        self.klines[token] = klines
+        if isinstance(tokens,str):
+            token = tokens
+            assert token in self.dataset_klines.keys(), "Token {token} does not exist in the dataset"
+            klines = {}
+            start = np.random.randint(0,self.dataset_length - length - 1)
+            for key in self.dataset_klines[token]:
+                klines[key] = self.dataset_klines[token][key][start:start+length]
+                self.max_time = klines[key].shape[0]
             
+            self.klines[token] = klines
+            if return_data:
+                return self.klines
+        
+        elif isinstance(tokens,(list,tuple)):
+            start = np.random.randint(0,self.dataset_length - length - 1)
+            for token in tokens:
+                assert token in self.dataset_klines.keys(), "Token {token} does not exist in the dataset"
+                klines = {}
+                for key in self.dataset_klines[token]:
+                    klines[key] = self.dataset_klines[token][key][start:start+length]
+                    self.max_time = klines[key].shape[0]
+                
+                self.klines[token] = klines
+            if return_data:
+                return self.klines
+        else:
+            raise ValueError("input {tokens} is neither a string, tuple or array")
+            
+
+    def get_historical_prices(self,symbols,amount):
+        """
         
 
-
-    def get_historical_prices(self,symbols,amount,return_data=False):
-        """
         Parameters
         ----------
-        symbols : tuple
-            A tuple of strings for the tokens you whish to get price data for
-        amount : int
-            The n previous datapoint you whish to get the prices for
-        return_data : bool, options
-             If true, the price data will be returned by the funciton. The default is False.
+        symbols : TYPE
+            DESCRIPTION.
+        amount : TYPE
+            DESCRIPTION.
+
+        Raises
+        ------
+        ValueError
+            DESCRIPTION.
 
         Returns
         -------
-        TYPE : Dictionary
-            All gathered price data for the current time
-            
-        Desctiption
-        -----------
-        This funciton gathers the historical data from the time specified by the model.
-        It will set time to amount if time is 0
-        It stores gathered prices internally in self.klines
+        TYPE
+            DESCRIPTION.
 
         """
         assert(amount < self.max_time), "Can't chosse a window that is larger than the dataset"
-        if self.time > self.max_time:
-            return None
         
         if not hasattr(self,'historical_klines'):
             self.historical_klines = {}
-        
-        if self.time == 0:
-            raise ValueError(f"You requested {amount} datapoints, at time {self.time}. Ensure your historical request is smaller than the current time")
+            
+        assert amount < self.time, f"You requested {amount} datapoints, at time {self.time}. Ensure your historical request is smaller than the current time."
             
             
         if isinstance(symbols,str):
@@ -238,7 +259,9 @@ class BinanceTradingEnv:
                 
             self.historical_klines[symbols] = tmp_dict
             
-        else:
+            return self.historical_klines
+            
+        elif isinstance(symbols,(list,tuple)):
         
             for symbol in symbols:
                 assert symbol in self.klines.keys(), f"No data with key {symbol} has been found"
@@ -248,65 +271,60 @@ class BinanceTradingEnv:
                     
                 self.historical_klines[symbol] = tmp_dict
             
-        if return_data:
             return self.historical_klines
         
+        else:
+            raise ValueError("The passed input {symbols} is neither a string, tuple or list")
+        
+    def calc_hedge_ratio(self,timeseries1,timeseries2):
+        ### This can be changed to another method ###
+        return np.mean(timeseries1) / np.mean(timeseries2)
     
-    ### DEPRICATED FUNCTION ###
-    def generate_arbritrage_pair(self,pair,alpha=None,lag = 0,return_data=False,price_key = 'open'):
-        """
-
-        Parameters
-        ----------
-        pair : str
-            The pair you whish to arbritrage. Formatted as 'token1-token2'
-        alpha : float
-            The hedge ratio, optional
-        lag : int, optional
-            The amout you whish the first timeseries to lag the second. The default is 0.
-        return_data : bool, optional
-            Specified if you whish to return the data. The default is False.
-
-        Returns
-        -------
-        tmp_dict : dict
-            The generatied arbritrage data
-            
-        Description
-        -----------
-        This funciton generates an arbritrage timeseries for a given metric.
-        It uses the data gathered by the self.get_prices() function,
-        so this function must be run first.
-
-        """
-
-        assert lag >= 0
-        ticker1, ticker2 = pair.split("-")
+    def get_z_scores(self,token1,token2,length,return_data=False,excluded_keys = ['log_return_high','log_return_low','log_return_open','log_return_close','volume','time']):
+        assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be strings"
+        assert token1 in self.klines and token2 in self.klines, "The token was not found in the loaded episode. Ensure an episode with the required keys are loaded"
         
-        if not hasattr(self, 'arbritrage_pairs'):
-            self.arbritrage_pairs = {}
-            
-        if alpha is None:
-            alpha = np.mean(np.array(self.klines[ticker1][price_key])) / np.mean(np.array(self.klines[ticker2][price_key]))
+        klines = self.get_historical_prices([token1,token2], length)
         
-        tmp_dict = {}
-        for key in self.klines[ticker1]:
+        z_scores_dict = {}
+        for key in klines[token1].keys():
+            if key not in excluded_keys:
+                timeseries1 = klines[token1][key]
+                try:
+                    timeseries2 = klines[token2][key]
+        
+                    hedge_ratio = self.calc_hedge_ratio(timeseries1,timeseries2)
+                    
+                    spread = timeseries1 - hedge_ratio * timeseries2
+                    z_scores = (spread - np.mean(spread)) / np.std(spread)
+                    z_scores_dict[key] = z_scores
+                except KeyError as e:
+                    print(f"Timeseries {key}, was found in the {token1} dataset but not the {token2}")
+                    z_scores_dict[key] = None
+        
+        return z_scores_dict
+
                 
-            series1 = np.array(self.klines[ticker1][key])
-            series2 = np.array(self.klines[ticker2][key])
-            
-            
-            if lag != 0:
-                series1 = series1[lag:]
-                series2 = series2[:-lag]
-                
-            if key != 'volume' and key != 'time':
-                tmp_dict[key] = series1 - alpha*series2
-            elif key =='time':
-                tmp_dict[key] = series1
-            
-        self.arbritrage_pairs[pair] = tmp_dict
-        return tmp_dict
+    def calc_coint_values(self,token1,token2,length,key='open'):
+        assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be specified as string"
+        assert token1 in self.dataset_klines and token1 in self.dataset_klines, "Specified tokens were not fount in the loaded dataset"
+        
+        klines = self.get_historical_prices([token1,token2],length)
+        asset1 = klines[token1][key]
+        asset2 = klines[token2][key]
+        
+        #preform adf on asset prices
+        adf_result_asset1 = adfuller(asset1)
+        adf_result_asset2 = adfuller(asset2)
+
+        # If p-value of these is greater than 0.05, the series is non-stationary
+        #It may be a good idea to also include these in the state space
+
+        # Step 3: Engle-Granger Cointegration Test (Two-Step Approach)
+        score, p_value, _ = coint(asset1, asset2)
+        
+        return p_value, adf_result_asset1, adf_result_asset2
+        
     
     def get_current_portfolio_value(self):
         
