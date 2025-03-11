@@ -37,7 +37,7 @@ class FullyConnectedFeatureExtractor(BaseFeaturesExtractor):
         # Flatten the observation and pass through the network
         return self.net(observations.flatten(start_dim=1))  # Flatten to match the input dimension
 
-#Define the custom feature extractor (for continuous input space)
+#Define the custom feature extractor (for dictionary input space)
 class DictFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Dict, features_dim: int = 50):
         super(DictFeatureExtractor, self).__init__(observation_space, features_dim)
@@ -73,7 +73,7 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
                observations['previous_action'].float().reshape(-1, 2)
             ], dim=1)
         
-        cont_obs = observations['open'].unsqueeze(-1)
+        cont_obs = observations['open_returns'].unsqueeze(-1)
         
         lstm_out, (hidden,cell) = self.lstm(cont_obs)
         
@@ -132,9 +132,8 @@ class DqnModelCont:
 
         # Run a single episode
         while not done:
-            action, _states = self.model.predict(obs, deterministic=True)  # Use deterministic for evaluation
+            action, state = self.model.predict(obs, deterministic=True)  # Use deterministic for evaluation
             prices.append(enviroment.get_current_price(enviroment.token))
-            actions.append(action)
             obs, reward, done, truncated, info  = enviroment.step(action)
             total_reward += reward
             
@@ -203,7 +202,7 @@ class DqnModelDict:
             batch_size=32,
             gamma=0.99,
             target_update_interval=500,
-            tensorboard_log="./dqn_tensorboard/"
+            #tensorboard_log="./dqn_tensorboard/"
         )
 
 
