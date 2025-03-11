@@ -7,6 +7,7 @@ import numpy as np
 sys.path.append(os.path.abspath("../"))
 from envs.binance_trading_enviroment import BinanceTradingEnv
 
+### DEPRICIATED ###
 class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
     """Custom Trading Environment following Gymnasium interface"""
 
@@ -126,6 +127,7 @@ class RlTradingEnvContinious(BinanceTradingEnv,gymnasium.Env):
         
         return self.state, reward, done, truncated, info
 
+### DEPRICIATED ###
 class RlTradingEnvDict(BinanceTradingEnv,gymnasium.Env):
     """Custom Trading Environment following Gymnasium interface"""
 
@@ -276,7 +278,7 @@ class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
         
         #Define observation space
         self.observation_space = spaces.Dict({
-                'open': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
+                'open_returns': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
                 #'close': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
                 'previous_action' : spaces.Discrete(2),
                 'is_bought' : spaces.Discrete(2),
@@ -312,7 +314,7 @@ class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
         
         current_data = self.get_historical_prices(self.token, self.window_length, return_data=True)[self.token]
         
-        state['open'] = current_data['open']
+        state['open_returns'] = current_data['log_return_open']
         #state['close'] = current_data['close']
         state['previous_action'] = action
         state['is_bought'] = self.is_bought
