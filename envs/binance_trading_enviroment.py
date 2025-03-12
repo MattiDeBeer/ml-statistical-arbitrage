@@ -19,7 +19,7 @@ class BinanceTradingEnv:
 
         #specified default model transaction fee (0.1%)
         self.transaction_percentage = 0.001
-        
+
         #creates an empty dictionary for model positions
         self.positions = {}
         
@@ -182,7 +182,7 @@ class BinanceTradingEnv:
         if return_data:
             return self.klines
         
-    def load_token_dataset(self, filename,directory = 'data/'):
+    def load_token_dataset(self, filename='dataset_100000_1m.h5',directory = 'data/'):
         """
         Loads a dataset from a hdf5 file and stores it in the dataset_klines attribute.
         Parameters:
@@ -227,7 +227,7 @@ class BinanceTradingEnv:
         """
 
         # If the episode klines attribute does not exist, create it
-        if not hasattr(self,'episode_klines'):
+        if not hasattr(self,'klines'):
             self.klines = {}
             
         # If the tokens input is a string
@@ -359,7 +359,7 @@ class BinanceTradingEnv:
         """
         return np.mean(timeseries1) / np.mean(timeseries2)
     
-    def get_z_scores(self,token1,token2,length,return_data=False,excluded_keys = ['log_return_high','log_return_low','log_return_open','log_return_close','volume','time']):
+    def get_z_scores(self,token1,token2,length,excluded_keys = ['log_return_high','log_return_low','log_return_open','log_return_close','volume','time']):
         """
         Calculates the z-scores for the spread between two tokens.
         Parameters:
@@ -407,7 +407,7 @@ class BinanceTradingEnv:
                 except KeyError as e:
                     print(f"Timeseries {key}, was found in the {token1} dataset but not the {token2}")
                     z_scores_dict[key] = None
-        
+
         return z_scores_dict
 
                 
