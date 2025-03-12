@@ -15,37 +15,54 @@ class RlTradingEnvSin(BinanceTradingEnv,gymnasium.Env):
     This enviroment follows the gymnasium interface.
     """
 
-    def __init__(self, window_length = 10, episode_length = 1000):
+    def __init__(self, **kwargs):
         super().__init__()
         """
         Initialize the enviroment with the following parameters:
         window_length: int - The number of previous data points to include in the observation space
         episode_length: int - The number of data points in the episode
         """
-    
-        #set the episode length
-        self.episode_length = episode_length
+
+        #Fetch arguments
+        self.episode_length = kwargs.get('episode_length', 1000)
+        self.window_length = kwargs.get('continious_dim', 10)
+        self.token = 'SIN'
+        self.transaction_percentage = kwargs.get('transaction_percentage', 0.01)
+        self.continious_obs = kwargs.get('continious_obs', {'open' : (-np.inf, np.inf)})
+        self.discrerete_obs = kwargs.get('discrete_obs', {'is_bought' : 2, 'previous_action' : 2})
+
+        #check if continious keys are allowed
+        allowed_keys = ['open','high','low','close']
+        for key in self.continious_obs.keys():
+            if key not in allowed_keys:
+                raise ValueError(f"Key {key} not allowed in this enviroment. Please use one of the following keys: {allowed_keys}")
+            
+        if kwargs.get('verbose', False):
+            #print environment parameters if verbose is set to True
+            print("\nEnvironment parameters:")
+            print(f"Episode length: {self.episode_length}")
+            print(f"Continious dim: {self.window_length}")
+            print(f"Token: {self.token}")
+            print(f"Transaction percentage: {self.transaction_percentage}")
+            print(f"Continious keys: {self.continious_obs.keys()}")
+            print(f"Discrete keys: {self.discrerete_obs.keys()}")
+
     
         # Define action and observation space
         self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Buy/Sell
-        n = window_length
+        n = self.window_length
         
-        #Define observation space dictionaty
-        self.observation_space = spaces.Dict({
-                'open': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
-                'previous_action' : spaces.Discrete(2),
-                'is_bought' : spaces.Discrete(2),
-                })
+        #Define observation space
+        self.observation_space = spaces.Dict({})
+        
+        #populate the observation space dictionary with continious keys
+        for key in self.continious_obs.keys():
+            self.observation_space[key] = spaces.Box(low=self.continious_obs[key][0], high=self.continious_obs[key][1], shape=(self.window_length,))
 
-        #define data window length
-        self.window_length = window_length
-        
-        #set token
-        self.token = 'SIN'
-        
-        #set transcation Percentage
-        self.transaction_percentage = 0.01
-        
+        #populate the discrete keys
+        for key in self.discrerete_obs.keys():
+            self.observation_space[key] = spaces.Discrete(self.discrerete_obs[key])
+
         #call reset function
         self.state, _ = self.reset()
         
@@ -87,8 +104,11 @@ class RlTradingEnvSin(BinanceTradingEnv,gymnasium.Env):
         #get current data
         current_data = self.get_historical_prices(self.token, self.window_length)[self.token]
         
-        #set observation values
-        state['open'] = current_data['open']
+        #load the log returns into the environment state
+        for key in self.continious_obs.keys():
+            state[key] = current_data[key]
+        
+        ### The continious keys will take care of themselves, but the discrete keys need to be set manually below ###
         state['previous_action'] = action
         state['is_bought'] = self.is_bought
         
@@ -169,13 +189,13 @@ class RlTradingEnvSin(BinanceTradingEnv,gymnasium.Env):
         
         return self.state, reward, done, truncated, info
     
-class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
+class RlTradingEnvToken(BinanceTradingEnv,gymnasium.Env):
     """ 
     A trading enviroment tha inherits from BinanceTradingEnv 
     This enviroment is setup to use historical BTC price data.
     This enviroment follows the gymnasium interface.
     """
-    def __init__(self, window_length = 10, episode_length = 1000):
+    def __init__(self, **kwargs):
         super().__init__()
         """
         Initialize the enviroment with the following parameters:
@@ -184,32 +204,50 @@ class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
         
         """
 
-        # Load dataset form inherited trading env
-        self.episode_length = episode_length
+        #Fetch arguments
+        self.episode_length = kwargs.get('episode_length', 1000)
+        self.window_length = kwargs.get('continious_dim', 10)
+        self.token = kwargs.get('token', 'BTCUSDT')
+        self.transaction_percentage = kwargs.get('transaction_percentage', 0.001)
+        self.dataset_filename = kwargs.get('dataset_filename', 'dataset_100000_1m.h5')
+        self.dataset_directory = kwargs.get('dataset_directory', 'data/')
+        self.continious_obs = kwargs.get('continious_obs', {'open' : (-np.inf, np.inf)})
+        self.discrerete_obs = kwargs.get('discrete_obs', {'is_bought' : 2, 'previous_action' : 2})
         
+        #Check to see if continious keys are allowed
+        allowed_keys = ['open','high','low','close','volume','log_return_open','log_return_high','log_return_low','log_return_close']
+        for key in self.continious_obs.keys():
+            if key not in allowed_keys:
+                raise ValueError(f"Key {key} not allowed in this enviroment. Please use one of the following keys: {allowed_keys}")
+        
+        if kwargs.get('verbose', False):
+            #print environment parameters if verbose is set to True
+            print("\nEnvironment parameters:")
+            print(f"Episode length: {self.episode_length}")
+            print(f"Continious dim: {self.window_length}")
+            print(f"Token: {self.token}")
+            print(f"Transaction percentage: {self.transaction_percentage}")
+            print(f"Continious keys: {self.continious_obs.keys()}")
+            print(f"Discrete keys: {self.discrerete_obs.keys}")
+
         #load the BTC price dataset
-        self.load_token_dataset('dataset_100000_1m.h5', directory = '../data/')
+        self.load_token_dataset(self.dataset_filename, directory = self.dataset_directory)
         
         # Define action and observation space
         self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Buy/Sell
-        n = window_length
-        
+        n = self.window_length
+    
         #Define observation space
-        self.observation_space = spaces.Dict({
-                'open_returns': spaces.Box(low=-np.inf, high=np.inf, shape=(n,)),
-                'previous_action' : spaces.Discrete(2),
-                'is_bought' : spaces.Discrete(2),
-                })
+        self.observation_space = spaces.Dict({})
+        
+        #populate the observation space dictionary with continious keys
+        for key in self.continious_obs.keys():
+            self.observation_space[key] = spaces.Box(low=self.continious_obs[key][0], high=self.continious_obs[key][1], shape=(self.window_length,))
 
-        #define data window length
-        self.window_length = window_length
-        
-        #set token
-        self.token = 'BTCUSDT'
-        
-        #set transcation Percentage
-        self.transaction_percentage = 0.01
-        
+        #populate the discrete keys
+        for key in self.discrerete_obs.keys():
+            self.observation_space[key] = spaces.Discrete(self.discrerete_obs[key])
+
         #call reset function
         self.state, _ = self.reset()
         
@@ -251,10 +289,11 @@ class RlTradingEnvBTC(BinanceTradingEnv,gymnasium.Env):
         #Fetch the historical prices
         current_data = self.get_historical_prices(self.token, self.window_length)[self.token]
         
-        #load the log returns into the ebvironment state
-        state['open_returns'] = current_data['log_return_open']
+        #load the log returns into the environment state
+        for key in self.continious_obs.keys():
+            state[key] = current_data[key]
         
-        #set the previous action and the bought indicator
+        ### The continious keys will take care of themselves, but the discrete keys need to be set manually below ###
         state['previous_action'] = action
         state['is_bought'] = self.is_bought
         
@@ -342,7 +381,6 @@ class TestEnv(gymnasium.Env):
     A simple test environment with a continuous observation space and a discrete action space.
     The observation space is a 3-dimensional continuous space and the action space is a discrete space with 2 actions.
     """
-    
     def __init__(self):
         super(TestEnv, self).__init__()
 
