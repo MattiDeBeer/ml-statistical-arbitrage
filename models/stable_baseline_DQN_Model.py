@@ -9,6 +9,7 @@ Created on Sun Feb  2 18:12:18 2025
 
 import sys
 import numpy as np
+import torch
 import torch.nn as nn
 from torch import tensor
 from torch import cat
@@ -39,7 +40,7 @@ class FullyConnectedFeatureExtractor(BaseFeaturesExtractor):
 
 #Define the custom feature extractor (for dictionary input space)
 class DictFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: spaces.Dict, features_dim: int = 50):
+    def __init__(self, observation_space: spaces.Dict, features_dim: int = 50, compile_flag=False):
         super(DictFeatureExtractor, self).__init__(observation_space, features_dim)
         
         cont_dim = 10
@@ -63,9 +64,16 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
            )
         
         self.lstm = nn.LSTM(1, 20, 1, batch_first=True)
-      
         
+        ### COMPILE FOR BETTER PERFORMANCE ###
+        ### Note that this causes errors when run in the an IDE ###
+        if compile_flag:
+            self.cont_net = torch.compile(self.cont_net)
+            self.disc_net = torch.compile(self.disc_net)
+            self.combiner_net = torch.compile(self.combiner_net)
+            self.lstm = torch.compile(self.lstm)
         
+
     def forward(self, observations):
 
         disc_obs = cat([
