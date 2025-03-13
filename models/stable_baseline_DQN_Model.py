@@ -11,11 +11,8 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import tensor
-from torch import cat
 import matplotlib.pyplot as plt
 from gymnasium import spaces
-sys.path.append("../")
 from stable_baselines3 import DQN
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
@@ -38,80 +35,107 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
         print(f"compile flag: {compile_flag}")
 
         #Get the continious observation space keys
-        self.continious_keys = kwargs.get("continious_obs", {'open': None}).keys()
-        print(f"continious keys: {self.continious_keys}")
+        self.timeseries_keys = kwargs.get("timeseries_obs", {}).keys()
+        print(f"timeseries keys: {self.timeseries_keys}")
 
-        #Get the LSTM hidden size
-        lstm_hidden_size = kwargs.get("lstm_hidden_size", 20)
-        print(f"lstm hidden size: {lstm_hidden_size}")
+        #get the indicator observations
+        self.indicator_keys = kwargs.get("indicator_obs", {}).keys()
+        print(f"Indicator keys: {self.indicator_keys}")
 
         #Get the discrete observation space keys
-        self.disc_keys = kwargs.get("discrete_obs", {'is_bought': 2, 'previous_action' : 2}).keys()
+        self.disc_keys = kwargs.get("discrete_obs", {}).keys()
         print(f"discrete keys: {self.disc_keys}")
 
-        #Get the discrete output dimension
-        self.disc_out_dim = kwargs.get("disc_out_dim", 4)
-        print(f"discrete output dimension: {self.disc_out_dim}")
+        #get the indicator network layers
+        self.indicator_layers = kwargs.get("indicator_layers", [0])
+        print(f"indicator network layers: {self.indicator_layers}")
 
-        #Get the continious output dimension
-        self.combiner_hidden = kwargs.get("combiner_hidden", [10,10])
-        print(f"combiner hidden layers: {self.combiner_hidden}")
+        #Get the LSTM hidden size
+        lstm_hidden_size = kwargs.get("lstm_hidden_size", [0])
+        print(f"lstm hidden size: {lstm_hidden_size}")
 
-        #Get the combiner net hidden dimensions
-        self.combiner_hidden = kwargs.get("combiner_hidden", [10,10])
-        print(f"combiner hidden layers: {self.combiner_hidden}")
+        #Get the disc net layers
+        self.disc_layers = kwargs.get("disc_hidden", [2,2])
+        print(f"disc hidden layers: {self.disc_layers}")
 
-        #Get the disc net hidden dimensions
-        self.disc_hidden = kwargs.get("disc_hidden", [2])
-        print(f"disc hidden layers: {self.disc_hidden}")
+        #Get the combiner hidden layers
+        self.combiner_layers = kwargs.get("combiner_hidden", [10,10])
+        print(f"combiner hidden layers: {self.combiner_layers}")
 
         if kwargs.get("verbose", False):
 
             print("Custom Feature Extractor parameters \n")
-            print(f"continious keys: {self.continious_keys}")
+            print(f"timeseries keys: {self.timeseries_keys}")
             print(f"lstm hidden size: {lstm_hidden_size}")
             print(f"discrete keys: {self.disc_keys}")
-            print(f"discrete output dimension: {self.disc_out_dim}")
-            print(f"combiner hidden layers: {self.combiner_hidden}")
-            print(f"disc hidden layers: {self.disc_hidden}")
+            #print(f"combiner hidden layers: {self.combiner_layers}")
+            #print(f"disc layers: {self.disc_layers}")
+            #print(f"indicator layers: {self.indicator_layers}")
             print(f"compile flag: {compile_flag}")
 
-
-        self.disc_net = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(len(self.disc_keys)*2,self.disc_hidden[0]),
-            nn.ReLU()
-            )
-        for i in range(1,len(self.disc_hidden)):
-            self.disc_net.add_module(f"hidden_{i}", nn.Linear(self.disc_hidden[i-1], self.disc_hidden[i]))
-            self.disc_net.add_module(f"relu_{i}", nn.ReLU())
-
-        self.disc_net.add_module("output", nn.Linear(self.disc_hidden[-1], self.disc_out_dim))
-        self.disc_net.add_module("relu", nn.ReLU())
+        assert (len (self.indicator_keys) != None) and (len(self.disc_keys) != None) and (len(self.timeseries_keys) != None), "You must provide at least on observation key"
         
-        self.lstm_dict = nn.ModuleDict({})
-        for key in self.continious_keys:
-            self.lstm_dict[key] = nn.LSTM(1, lstm_hidden_size, batch_first=True)
+        if len(self.indicator_keys) != 0:
+            self.indicator_net = nn.Sequential(
+                nn.Linear(len(self.disc_keys), self.indicator_layers[0]),
+                nn.ReLU()
+            )
+            for i in range(1,len(self.indicator_layers)):
+                self.indicator_net.add_module(f"layer_{i}", nn.Linear(self.indicator_layers[i-1],self.indicator_layers[i]))
+                self.indicator_net.add_module(f"relu_{i}", nn.ReLU())
+        else:
+            self.indicator_layers = [0]
+            self.indicator_keys = {}
+            self.indicator_net = lambda x : x
+
+        if len(self.disc_keys) != 0:
+            self.disc_net = nn.Sequential(
+                nn.Flatten(),
+                nn.Linear(len(self.disc_keys)*2,self.disc_layers[0]),
+                nn.ReLU()
+                )
+            for i in range(1,len(self.disc_layers)):
+                self.disc_net.add_module(f"hidden_{i}", nn.Linear(self.disc_layers[i-1], self.disc_layers[i]))
+                self.disc_net.add_module(f"relu_{i}", nn.ReLU())
+        else:
+            self.disc_layers = [0]
+            self.disc_keys = {}
+            self.disc_net = lambda x : x
+        
+        if len(self.timeseries_keys) != 0:
+            self.lstm_dict = nn.ModuleDict({})
+            for key in self.timeseries_keys:
+                self.lstm_dict[key] = nn.LSTM(1, lstm_hidden_size, batch_first=True)
+        else:
+            self.lstm_hidden_size = [0]
+            self.lstm_keys = {}
+            self.lstm_dict={}
 
         self.combiner_net = nn.Sequential(
-            nn.Linear(lstm_hidden_size * len(self.continious_keys) + self.disc_out_dim, self.combiner_hidden[0]),
-            nn.ReLU(),
-        )
+                nn.Linear(lstm_hidden_size * len(self.timeseries_keys) + self.disc_layers[-1] + self.indicator_layers[-1], self.combiner_layers[0]),
+                nn.ReLU(),
+            )
 
-        for i in range(1,len(self.combiner_hidden)):
-            self.combiner_net.add_module(f"hidden_{i}", nn.Linear(self.combiner_hidden[i-1], self.combiner_hidden[i]))
+        for i in range(1,len(self.combiner_layers)):
+            self.combiner_net.add_module(f"hidden_{i}", nn.Linear(self.combiner_layers[i-1], self.combiner_layers[i]))
             self.combiner_net.add_module(f"relu_{i}", nn.ReLU())
         
-        self.combiner_net.add_module("output", nn.Linear(self.combiner_hidden[-1], features_dim))
+        self.combiner_net.add_module("output", nn.Linear(self.combiner_layers[-1], features_dim))
         self.combiner_net.add_module("relu", nn.ReLU())
 
         if kwargs.get("verbose", False):
             print("\nCombiner Net Architecture: \n")
             print(self.combiner_net)
-            print("\nDiscrete Net Architecture: \n")
-            print(self.disc_net)
-            print("\nLSTM Net Architecture: \n")
-            print(self.lstm_dict)
+
+            if len(self.disc_keys) != 0:
+                print("\nDiscrete Net Architecture: \n")
+                print(self.disc_net)
+            if len(self.timeseries_keys) !=  0:
+                print("\nLSTM Net Architecture: \n")
+                print(self.lstm_dict)
+            if len(self.indicator_keys) != 0:
+                print("\n Indicator Net Architecture: \n")
+                print(self.indicator_net)
 
 
         ### COMPILE FOR BETTER PERFORMANCE ###
@@ -124,14 +148,17 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations):
 
-        disc_obs = []
+        disc_obs = [torch.tensor([])]
         for key in self.disc_keys:
             disc_obs.append(observations[key])
+        disc_obs = torch.cat(disc_obs, dim = -1)
 
-        disc_obs = cat(disc_obs, dim = -1)
-        
-        hidden_states = []
-        
+        indicator_obs = [torch.tensor([])]
+        for key in self.indicator_keys:
+            indicator_obs.append[observations[key]]
+        indicator_obs = torch.cat(indicator_obs, dim = -1)
+
+        hidden_states = [torch.tensor([])]
         for key, lstm in self.lstm_dict.items():
             obs = observations[key].unsqueeze(-1)
             _, (hn, _) = lstm(obs)
@@ -139,11 +166,10 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
 
         lstm_out = torch.cat(hidden_states, dim=-1)  
         disc_obs_out = self.disc_net(disc_obs)
+        indicator_obs_out = self.indicator_net(indicator_obs)
 
-        Y = cat([lstm_out, disc_obs_out],dim = -1)
-
+        Y = torch.cat([lstm_out, disc_obs_out, indicator_obs_out],dim = -1)
         Z = self.combiner_net(Y)
-        
         return Z
 
             
@@ -158,18 +184,20 @@ class DqnModel:
         ### Enviroment Configurations ###
         enviromentClass = config.get("enviromentClass")
         episode_length = config.get("episode_length", 1000)
-        continious_dim = config.get("continious_dim", 10)
-        continious_observation_space = config.get("continious_obs", {'open' : (-np.inf, np.inf)})
-        discrete_observation_space = config.get("discrete_obs", {'is_bought' : 2, 'previous_action' : 2})
+        timeseries_observation_space = config.get("timeseries_obs", {})
+        discrete_observation_space = config.get("discrete_obs", {})
+        indicator_observation_space = config.get("indicator_obs", {})
         token = config.get("token","BTCUSDT")
         verbose = config.get("verbose", False)
+        transaction_precentage = config.get('transaction_precentage', 0.01)
+        token_pair = config.get('token_pair',None)
 
         ### Feature Extractor Configurations ###
         fearutes_dim = config.get("features_dim", 10)
-        combiner_hidden = config.get("combiner_hidden", [10,10])
-        disc_hidden = config.get("disc_hidden", [10,10])
+        combiner_layers = config.get("combiner_layers", [10,10])
+        disc_layers = config.get("disc_hidden", [10,10])
+        indicator_layers = config.get("indicator_hidden", [2,2])
         lstm_hidden_size = config.get("lstm_hidden_size", 20)
-        disc_out_dim = config.get("disc_out_dim", 4)
         compile_flag = config.get("compile_flag", False)
 
         self.FeatureExtractorClass = DictFeatureExtractor
@@ -178,22 +206,27 @@ class DqnModel:
         # Create the enviroment
         self.enviroment_dv = DummyVecEnv([lambda: enviromentClass(
                     episode_length=episode_length,
-                    continious_dim=continious_dim,
                     token=token,
-                    continious_obs = continious_observation_space,
+                    indicator_obs = indicator_observation_space,
+                    timeseries_obs = timeseries_observation_space,
                     discrete_obs = discrete_observation_space,
-                    verbose = verbose
+                    verbose = verbose,
+                    transaction_precentage = transaction_precentage,
+                    token_pair = token_pair
 
         )])
         
         print(" \nTesting enviroment \n")
         self.enviroment = enviromentClass(episode_length=episode_length,
-                                          continious_dim=continious_dim,
-                                          token=token,
-                                          continious_obs = continious_observation_space,
-                                          discrete_obs = discrete_observation_space,
-                                          verbose = verbose
-                                          )
+                                        token=token,
+                                        indicator_obs = indicator_observation_space,
+                                        timeseries_obs = timeseries_observation_space,
+                                        discrete_obs = discrete_observation_space,
+                                        verbose = verbose,
+                                        transaction_precentage = transaction_precentage,
+                                        token_pair = token_pair
+
+        )
 
 
 
@@ -201,17 +234,17 @@ class DqnModel:
         policy_kwargs = dict(
             features_extractor_class=self.FeatureExtractorClass,
             features_extractor_kwargs=dict(features_dim=10,
-                                            continious_dim = continious_dim,
-                                            continious_obs = continious_observation_space,
+                                            timeseries_obs = timeseries_observation_space,
                                             discrete_obs = discrete_observation_space,
-                                            disc_out_dim = disc_out_dim,
+                                            indicator_obs = indicator_observation_space,
                                             fearutes_dim = fearutes_dim,
-                                            combiner_hidden = combiner_hidden,
-                                            disc_hidden = disc_hidden,
+                                            combiner_layers = combiner_layers,
+                                            indicator_layers = indicator_layers,
+                                            disc_layers = disc_layers,
                                             lstm_hidden_size = lstm_hidden_size,
                                             compile_flag = compile_flag,
                                             verbose = verbose
-                                            )  # Adjust feature size
+                                            )
                             )
         
         self.model = DQN(
