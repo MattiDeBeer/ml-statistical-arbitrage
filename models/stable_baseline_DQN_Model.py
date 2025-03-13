@@ -23,55 +23,45 @@ class DictFeatureExtractor(BaseFeaturesExtractor):
 
         #Get the feature dimension
         features_dim = kwargs.get("features_dim", 10)
-        print(f"output dimension: {features_dim}")
 
         #Initialize the base class
         super(DictFeatureExtractor, self).__init__(observation_space,features_dim)
-        
-        print("\nInitializing custom feature extractor \n")
 
         #Get the compile flag
         compile_flag = kwargs.get("compile_flag", False)
-        print(f"compile flag: {compile_flag}")
 
         #Get the continious observation space keys
         self.timeseries_keys = kwargs.get("timeseries_obs", {}).keys()
-        print(f"timeseries keys: {self.timeseries_keys}")
 
         #get the indicator observations
         self.indicator_keys = kwargs.get("indicator_obs", {}).keys()
-        print(f"Indicator keys: {self.indicator_keys}")
 
         #Get the discrete observation space keys
         self.disc_keys = kwargs.get("discrete_obs", {}).keys()
-        print(f"discrete keys: {self.disc_keys}")
 
         #get the indicator network layers
         self.indicator_layers = kwargs.get("indicator_layers", [0])
-        print(f"indicator network layers: {self.indicator_layers}")
 
         #Get the LSTM hidden size
-        lstm_hidden_size = kwargs.get("lstm_hidden_size", [0])
-        print(f"lstm hidden size: {lstm_hidden_size}")
+        lstm_hidden_size = kwargs.get("lstm_hidden_size", 0)
 
         #Get the disc net layers
-        self.disc_layers = kwargs.get("disc_hidden", [2,2])
-        print(f"disc hidden layers: {self.disc_layers}")
+        self.disc_layers = kwargs.get("disc_layers", [2,2])
 
         #Get the combiner hidden layers
-        self.combiner_layers = kwargs.get("combiner_hidden", [10,10])
-        print(f"combiner hidden layers: {self.combiner_layers}")
+        self.combiner_layers = kwargs.get("combiner_layers", [10,10])
 
-        if kwargs.get("verbose", False):
-
-            print("Custom Feature Extractor parameters \n")
-            print(f"timeseries keys: {self.timeseries_keys}")
-            print(f"lstm hidden size: {lstm_hidden_size}")
-            print(f"discrete keys: {self.disc_keys}")
-            #print(f"combiner hidden layers: {self.combiner_layers}")
-            #print(f"disc layers: {self.disc_layers}")
-            #print(f"indicator layers: {self.indicator_layers}")
-            print(f"compile flag: {compile_flag}")
+        if kwargs.get("verbose", False):  
+            print("\nCustom Fearute Extractor Parameters \n")
+            print(f"Number of Feature dimensions: {features_dim}")
+            print(f"Compile flag: {compile_flag}")
+            print(f"Timeseries keys: {self.timeseries_keys}")
+            print(f"Indicator keys: {self.indicator_keys}")
+            print(f"Discrete keys: {self.disc_keys}")
+            print(f"Indicator network layers: {self.indicator_layers}")
+            print(f"LSTM hidden size: {lstm_hidden_size}")
+            print(f"Discrete network layers: {self.disc_layers}")
+            print(f"Combiner network hidden layers: {self.combiner_layers}")
 
         assert (len (self.indicator_keys) != None) and (len(self.disc_keys) != None) and (len(self.timeseries_keys) != None), "You must provide at least on observation key"
         
@@ -195,14 +185,39 @@ class DqnModel:
         ### Feature Extractor Configurations ###
         fearutes_dim = config.get("features_dim", 10)
         combiner_layers = config.get("combiner_layers", [10,10])
-        disc_layers = config.get("disc_hidden", [10,10])
-        indicator_layers = config.get("indicator_hidden", [2,2])
+        disc_layers = config.get("disc_layers", [10,10])
+        indicator_layers = config.get("indicator_layers", [2,2])
         lstm_hidden_size = config.get("lstm_hidden_size", 20)
         compile_flag = config.get("compile_flag", False)
 
+        ### DQN Model Parameters ###
+        learning_rate = config.get("learning_rate", 1e-3)
+        buffer_size = config.get("buffer_size", 10000)
+        learning_starts = config.get("learning_starts", 500)
+        batch_size = config.get("batch_size", 32)
+        gamma = config.get("gamma", 0.99)
+        target_update_interval = config.get("target_update_interval", 500)
+        exploration_initial_eps = config.get("exploration_initial_eps", 1.0)
+        exploration_final_eps = config.get("exploration_final_eps", 0.05)
+        exploration_fraction = config.get("exploration_fraction", 0.5)
+
+        if verbose:
+            print("\nDQN Config Parameters\n")
+            print(f"learning_rate: {learning_rate}")
+            print(f"buffer_size: {buffer_size}")
+            print(f"learning_starts: {learning_starts}")
+            print(f"batch_size: {batch_size}")
+            print(f"gamma: {gamma}")
+            print(f"target_update_interval: {target_update_interval}")
+            print(f"exploration_initial_eps: {exploration_initial_eps}")
+            print(f"exploration_final_eps: {exploration_final_eps}")
+            print(f"exploration_fraction: {exploration_fraction}")
+
         self.FeatureExtractorClass = DictFeatureExtractor
 
-        print(" \nTraining enviroment \n ")
+        if verbose:
+            print(" \nTraining enviroment \n ")
+
         # Create the enviroment
         self.enviroment_dv = DummyVecEnv([lambda: enviromentClass(
                     episode_length=episode_length,
@@ -216,7 +231,9 @@ class DqnModel:
 
         )])
         
-        print(" \nTesting enviroment \n")
+        if verbose:
+            print(" \nTesting enviroment \n")
+
         self.enviroment = enviromentClass(episode_length=episode_length,
                                         token=token,
                                         indicator_obs = indicator_observation_space,
@@ -252,12 +269,15 @@ class DqnModel:
             env=self.enviroment_dv,
             policy_kwargs=policy_kwargs,
             verbose=2,
-            learning_rate=1e-3,
-            buffer_size=10000,
-            learning_starts=500,
-            batch_size=32,
-            gamma=0.99,
-            target_update_interval=500,
+            learning_rate=learning_rate,
+            buffer_size=buffer_size,
+            learning_starts=learning_starts,
+            batch_size=batch_size,
+            gamma=gamma,
+            target_update_interval=target_update_interval,
+            exploration_initial_eps=exploration_initial_eps,  # Start with full exploration
+            exploration_final_eps=exploration_final_eps,   # Minimum exploration
+            exploration_fraction=exploration_fraction,
             #tensorboard_log="./dqn_tensorboard/"
         )
 
