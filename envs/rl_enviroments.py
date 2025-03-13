@@ -42,7 +42,7 @@ class RlTradingEnvSin(BinanceTradingEnv,gymnasium.Env):
                 raise ValueError(f"The timeseries key '{key}' not allowed in this enviroment. Please use one of the following keys: {allowed_timeseries_keys}")
             
         allowed_disc_keys = ['is_bought','previous_action']
-        for key in allowed_disc_keys:
+        for key in self.discrerete_obs.keys():
             if key not in allowed_disc_keys:
                 raise ValueError(f"Key discrete key '{key}' not allowed in this enviroment. Please use one of the following keys: {allowed_disc_keys}")
             
@@ -233,9 +233,9 @@ class RlTradingEnvToken(BinanceTradingEnv,gymnasium.Env):
                 raise ValueError(f"The timeseries key '{key}' is not allowed in this enviroment. Please use one of the following keys: {allowed_timeseries_keys}")
             
         allowed_disc_keys = ['is_bought','previous_action']
-        for key in allowed_disc_keys:
+        for key in self.discrerete_obs.keys():
             if key not in allowed_disc_keys:
-                raise ValueError(f"The discrete key '{key}' not allowed in this enviroment. Please use one of the following keys: {allowed_disc_keys}")
+                raise ValueError(f"Key discrete key '{key}' not allowed in this enviroment. Please use one of the following keys: {allowed_disc_keys}")
         
         if kwargs.get('verbose', False):
             #print environment parameters if verbose is set to True
