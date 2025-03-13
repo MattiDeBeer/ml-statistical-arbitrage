@@ -10,10 +10,11 @@ config = {
     "enviromentClass": RlTradingEnvSin,
     "episode_length": 500,
     "token" : 'BTCUSDT',
-    "continious_dim" : 20,
-    "continious_obs" : {'open' : (-np.inf,np.inf), 'close' : (-np.inf, np.inf)},
+    "timeseries_obs" : {'open' : (10,-np.inf,np.inf), 'close' : (5,-np.inf, np.inf)},
+    #"indicator_obs" : {'adfuller1' : (0,1)},
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 2},
     "verbose" : True,
+    "transaction_percentage" : 0,
     
     ### Feature Extractor Config ###
     "combiner_hidden" : [10,20],
@@ -26,6 +27,8 @@ config = {
 
 Model = DqnModel(config)
 
-Model.train(10000)
+Model.train(100000)
+
+#%%
 
 Model.plot_episode()
