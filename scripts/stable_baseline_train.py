@@ -17,17 +17,27 @@ config = {
     "transaction_percentage" : 0,
     
     ### Feature Extractor Config ###
-    "combiner_hidden" : [10,20],
-    "disc_hidden" : [3],
-    "lstm_hidden_size" : 30,
-    "disc_out_dim" : 5,
-    "compile_flag" : False
-
+    "combiner_layers" : [10,20,5],
+    "disc_layers" : [3,2],
+    #"indicator_layers" : [10,10],
+    "lstm_hidden_size" : 10,
+    "compile_flag" : False,
+    
+    ### DQN Config ###
+    "learning_rate" : 1e-3,
+    "buffer_size" : 10000,
+    "learning_starts": 500,
+    "batch_size": 32,
+    "gamma": 0.99,
+    "target_update_interval": 500,
+    "exploration_initial_eps": 1.0,
+    "exploration_final_eps": 0.05,
+    "exploration_fraction": 0.5,
 }
 
 Model = DqnModel(config)
 
-Model.train(100000)
+Model.train(10)
 
 #%%
 
