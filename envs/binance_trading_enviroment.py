@@ -359,7 +359,7 @@ class BinanceTradingEnv:
         """
         return np.mean(timeseries1) / np.mean(timeseries2)
     
-    def get_z_scores(self,token1,token2,length,excluded_keys = ['log_return_high','log_return_low','log_return_open','log_return_close','volume','time']):
+    def get_z_scores(self,token1,token2,length):
         """
         Calculates the z-scores for the spread between two tokens.
         Parameters:
@@ -371,6 +371,8 @@ class BinanceTradingEnv:
         Returns:
         dict: If return_data is True, returns a dictionary containing the z-scores data.
         """
+
+        excluded_keys = ['volume','time']
 
         # Ensure that the tokens are strings
         assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be strings"
@@ -443,7 +445,7 @@ class BinanceTradingEnv:
         score, p_value, _ = coint(asset1, asset2)
         
 
-        return p_value, adf_result_asset1, adf_result_asset2
+        return p_value, adf_result_asset1[1], adf_result_asset2[1]
         
     
     def get_current_portfolio_value(self):
@@ -606,18 +608,18 @@ class BinanceTradingEnv:
         Parameters:
         time_step (int): The amount of time to step forward.
         Returns:
-        bool: True if the time was stepped forward, False if the maximum time was exceeded.
+        bool: False if the time was stepped forward (i.e the episode is not done), True if the maximum time was exceeded.
         """
 
         # Check if the time plus the time step is greater than the maximum time
         if self.time + time_step >= self.max_time:
-            # If the time plus the time step is greater than the maximum time, set the time to the maximum time minus 1 and return False
+            # If the time plus the time step is greater than the maximum time, set the time to the maximum time minus 1 and return True
             self.time = self.max_time-1
-            return False
-        else:
-            # If the time plus the time step is less than the maximum time, step the time forward by the time step and return True
-            self.time += time_step
             return True
+        else:
+            # If the time plus the time step is less than the maximum time, step the time forward by the time step and return False
+            self.time += time_step
+            return False
         
     
     def close_all_positions(self,verbose = False):
