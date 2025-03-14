@@ -576,8 +576,8 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
 
         #populate the adfuller metrics once
         if 'adfuller' in self.indicator_obs.keys():
-            state[self.token_pair[0]+"_adfuller"] = np.array([coint_results[0]])
-            state[self.token_pair[1]+"_adfuller"] = np.array([coint_results[1]])
+            state[self.token_pair[0]+"_adfuller"] = np.array([coint_results[1]])
+            state[self.token_pair[1]+"_adfuller"] = np.array([coint_results[2]])
 
         #populate the discrete keys
         if 'previous_action' in list(self.observation_space.keys()):
