@@ -21,6 +21,9 @@ dqn_tensorboard/
 #datasets
 data/
 
+#profiling
+profiling-results/
+
 # Other untracked files
 =2.0
 
