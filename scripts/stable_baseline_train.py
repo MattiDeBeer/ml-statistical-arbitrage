@@ -48,12 +48,13 @@ pairs_config = {
     "timeseries_obs" : {'z_score' : (10,-np.inf,np.inf),'volume' : (10,-np.inf,np.inf)},
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 2},
     "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1)},
-    "verbose" : True,
+    "verbose" : False,
     "transaction_percentage" : 0,
     "token_pair" : ("BTCUSDT","ETHUSDT"),
     "z_score_context_length" : 150,
     "coint_context_length" : 150,
-    "dataset_file": "file",
+    "dataset_file": "data/dataset_60000_1h_train.h5",
+    "test_dataset": "data/dataset_60000_1h_test.h5",
     
     
     ### Feature Extractor Config ###
@@ -91,7 +92,8 @@ pairs_config = {
 ### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###
 
 Model = PairsDqnModel(pairs_config)
-Model.train(1000)
+Model.train(10000)
+Model.save("test")
 Model.plot_episode()
 
 ### #############################################################

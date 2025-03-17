@@ -234,6 +234,7 @@ class PairsDqnModel:
         coint_context_length = config.get('coint_context_length', 15)
         GPU_AVAILABLE = config.get('GPU_available', False)
         dataset_file = config.get('dataset_file' )
+        test_dataset = config.get('test_dataset')
 
         ### Feature Extractor Configurations ###
         FeatureExtractorClass = config.get("feature_extractor_class", None)
@@ -299,7 +300,7 @@ class PairsDqnModel:
                                         z_score_context_length = z_score_context_length,
                                         coint_context_length = coint_context_length,
                                         GPU_available = GPU_AVAILABLE,
-                                        dataset_file = dataset_file
+                                        dataset_file = test_dataset
 
         )
 
