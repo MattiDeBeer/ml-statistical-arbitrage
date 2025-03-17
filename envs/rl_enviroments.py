@@ -433,6 +433,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         self.timeseries_obs = kwargs.get('timeseries_obs', {})
         self.discrerete_obs = kwargs.get('discrete_obs', {})
         self.indicator_obs = kwargs.get('indicator_obs', {})
+        self.GPU_AVAILABLE = kwargs.get('GPU_AVAILABLE', False)
         
         if self.token_pair is None:
             print("You have selected the pairs trading enviroment, but have not provided a token pair.")
@@ -557,8 +558,12 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         #Fetch the data
         current_data = self.get_historical_prices(self.token_pair, self.window_length)
 
-        if 'coint_p_value' in self.indicator_obs.keys() or 'adfuller' in self.indicator_obs.keys():
-            coint_results = self.calc_coint_values(self.token_pair[0],self.token_pair[1],self.coint_context_length,key='open')
+        if ('coint_p_value' in self.indicator_obs.keys() or 'adfuller' in self.indicator_obs.keys()) and self.GPU_AVAILABLE:
+            #Use GPU if available
+            coint_results = self.calc_coint_values_GPU(self.token_pair[0],self.token_pair[1],self.coint_context_length,key='open')
+        elif ('coint_p_value' in self.indicator_obs.keys() or 'adfuller' in self.indicator_obs.keys()) and not self.GPU_AVAILABLE:
+            #Use CPU
+            coint_results = self.calc_coint_values(self.token_pair[0],self.token_pair[1],self.coint_context_length,key='open')            
 
         #populate the timeseries information for all tokens
         for token in self.token_pair:

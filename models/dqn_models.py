@@ -231,6 +231,7 @@ class PairsDqnModel:
         token_pair = config.get('token_pair',None)
         z_score_context_length = config.get('z_score_context_length',15)
         coint_context_length = config.get('coint_context_length', 15)
+        GPU_AVAILABLE = config.get('GPU_available', False)
 
         ### Feature Extractor Configurations ###
         FeatureExtractorClass = config.get("feature_extractor_class", None)
@@ -277,6 +278,7 @@ class PairsDqnModel:
                     token_pair = token_pair,
                     z_score_context_length = z_score_context_length,
                     coint_context_length = coint_context_length,
+                    GPU_available = GPU_AVAILABLE
 
         )])
         
@@ -293,6 +295,7 @@ class PairsDqnModel:
                                         token_pair = token_pair,
                                         z_score_context_length = z_score_context_length,
                                         coint_context_length = coint_context_length,
+                                        GPU_available = GPU_AVAILABLE,
 
         )
 

@@ -14,7 +14,7 @@ single_config = {
     "token" : 'BTCUSDT',
     "timeseries_obs" : {'open' : (10,-np.inf,np.inf)}, 
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 2},
-    "verbose" : True,
+    "verbose" : False,
     "transaction_percentage" : 0.001,
     "token_pair" : ("BTCUSDT","ETHUSDT"),
     
@@ -36,7 +36,7 @@ single_config = {
     "exploration_initial_eps": 1.0,
     "exploration_final_eps": 0.05,
     "exploration_fraction": 0.7,
-    "q_net_layers" : [50],
+    "q_net_layers" : [10],
     "verbose_level" : 2
 }
 
@@ -45,14 +45,14 @@ pairs_config = {
     ### Enviroment Config ###
     "enviromentClass": RlTradingEnvPairs,
     "episode_length": 1000,
-    "timeseries_obs" : {'z_score' : (10,-np.inf,np.inf), 'log_return_open' : (10,-np.inf,np.inf)},
+    "timeseries_obs" : {'z_score' : (10,-np.inf,np.inf),'volume' : (10,-np.inf,np.inf)},
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 2},
     "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1)},
     "verbose" : True,
     "transaction_percentage" : 0,
     "token_pair" : ("BTCUSDT","ETHUSDT"),
-    "z_score_context_length" : 100,
-    "coint_context_length" : 100,
+    "z_score_context_length" : 150,
+    "coint_context_length" : 150,
     
     
     ### Feature Extractor Config ###
@@ -63,6 +63,7 @@ pairs_config = {
     "lstm_hidden_size" : 10,
     "compile_flag" : False,
     "feature_dim" : 8,
+    "GPU_available" : True,
     
     ### DQN Config ###
     "learning_rate" : 1e-3,
@@ -81,15 +82,15 @@ pairs_config = {
 ### THIS TRAINS AND PLOTS AN EPISODE FOR SINGLE TOKEN TRADING ###
 
 #Model = DqnModel(single_config)
-#Model.train(10000)
+#Model.train(100000)
 #Model.plot_episode()
 
 #################################################################
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###
 
-#Model = PairsDqnModel(pairs_config)
-#Model.train(1000)
-#Model.plot_episode()
+Model = PairsDqnModel(pairs_config)
+Model.train(1000)
+Model.plot_episode()
 
 ### #############################################################

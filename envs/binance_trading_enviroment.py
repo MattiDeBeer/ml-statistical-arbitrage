@@ -1,6 +1,10 @@
 import numpy as np
-from statsmodels.tsa.stattools import adfuller, coint
 import h5py
+import jax.numpy as jnp
+from jax.scipy.stats import norm
+import cupy as cp
+from cupy.linalg import lstsq
+from statsmodels.tsa.stattools import adfuller, coint
 
 class BinanceTradingEnv: 
    
@@ -411,8 +415,87 @@ class BinanceTradingEnv:
                     z_scores_dict[key] = None
 
         return z_scores_dict
+    
+    def jax_adf_test(self,series):
+        """
+        Performs a GPU optimized adf test.
+        paramaters:
+        series (np array): The series you which to calculate the test for
+        returns:
+            test_stat: The test statitsics
+        p_value (float): The p value of the test
+         
+       """
+        series = jnp.asarray(series)
+        delta_y = jnp.diff(series)
+        lagged_y = series[:-1]
+         
+        # Compute OLS regression (least squares)
+        beta = jnp.sum(lagged_y * delta_y) / jnp.sum(lagged_y ** 2)
+        residuals = delta_y - beta * lagged_y
+        se = jnp.sqrt(jnp.sum(residuals ** 2) / (len(series) - 2))
+         
+        # Compute test statistic (similar to adfuller)
+        test_stat = beta / (se / jnp.sqrt(jnp.sum(lagged_y ** 2)))
+         
+        # Get critical value (normal approximation for speed)
+        p_value = 2 * (1 - norm.cdf(jnp.abs(test_stat)))
+         
+        return test_stat, p_value
 
+    def cupy_cointegration_test(self,y1, y2):
+        """
+        Performs a GPU optimized cointegraiton test using CuPy
+        parameters:
+        y1 (np array): The first series you whish to test
+        y2 (np.array): The second series you whish to test
+        return:
+        test_stat: The test statistics
+        p_value (float): The p value of the test
+       """
+        y1, y2 = cp.asarray(y1), cp.asarray(y2)
+        X = cp.vstack([y2, cp.ones(len(y2))]).T  # Add intercept
+        beta, _, _, _ = lstsq(X, y1)  # Solve OLS y1 ~ y2
+        
+        residuals = y1 - (X @ beta)  # Compute residuals
+        test_stat, p_value = self.jax_adf_test(cp.asnumpy(residuals))  # Apply fast ADF test
+        
+        return test_stat, p_value
                 
+    def calc_coint_values_GPU(self,token1,token2,length,key='open'):
+        """
+        Calculates the p-value for the cointegration test between two tokens for a specific timeseries key.
+        Parameters:
+        token1 (str): The first token.
+        token2 (str): The second token.
+        length (int): The length of the historical data to use.
+        key (str, optional): The key to use for the calculation. Default is 'open'.
+        Returns:
+        float: The p-value for the cointegration test between the two tokens.
+        """
+        # Ensure that the tokens are strings
+        assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be specified as string"
+
+        # Ensure that the tokens are in the loaded dataset
+        assert token1 in self.dataset_klines and token1 in self.dataset_klines, "Specified tokens were not fount in the loaded dataset"
+        
+        # Get the historical prices for the two tokens
+        klines = self.get_historical_prices([token1,token2],length)
+
+        # Get the timeseries for the two tokens
+        asset1 = klines[token1][key]
+        asset2 = klines[token2][key]
+        
+        #preform adf on asset prices, this checks to see if the time series is stationary
+        adf_result_asset1 = self.jax_adf_test(asset1)
+        adf_result_asset2 = self.jax_adf_test(asset2)
+
+        # Calculate the cointegration test p-value and score
+        stats, p_value, = self.cupy_cointegration_test(asset1, asset2)
+        
+
+        return p_value, adf_result_asset1[1], adf_result_asset2[1]
+    
     def calc_coint_values(self,token1,token2,length,key='open'):
         """
         Calculates the p-value for the cointegration test between two tokens for a specific timeseries key.
@@ -444,7 +527,6 @@ class BinanceTradingEnv:
         # Calculate the cointegration test p-value and score
         score, p_value, _ = coint(asset1, asset2)
         
-
         return p_value, adf_result_asset1[1], adf_result_asset2[1]
         
     
