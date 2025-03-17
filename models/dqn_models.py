@@ -12,6 +12,32 @@ from collections import defaultdict
 from torch.nn import ReLU
 from torch.cuda import is_available
 import sys
+from tqdm import tqdm
+from stable_baselines3.common.callbacks import BaseCallback
+import numpy as np
+from collections import deque
+import os
+
+class RewardLoggerCallback(BaseCallback):
+    def __init__(self, log_interval=1000, verbose=0):
+        super().__init__(verbose)
+        self.log_interval = log_interval
+        self.rewards = deque(maxlen=100)
+        self.step = 0
+
+    def _on_step(self):
+        self.step += 1
+        if "rewards" in self.locals:
+            reward = self.locals["rewards"][0]
+            self.rewards.append(reward)
+
+        if (self.step % self.log_interval) == 0:
+            avg_reward = np.mean(self.rewards)
+            sys.stdout.write(f"\rStep: {self.num_timesteps} | Avg Reward: {avg_reward:.5f}   ")
+            sys.stdout.flush()  # Flush to update in-place
+        
+        return True
+
 
 class DqnModel:
     def __init__(self, config):
@@ -215,6 +241,8 @@ class DqnModel:
 class PairsDqnModel:
     def __init__(self, config):
 
+        self.config = config
+        
         required_keys = ["enviromentClass","token_pair","feature_extractor_class","dataset_file"]
         for key in required_keys:
             if key not in config:
@@ -222,7 +250,7 @@ class PairsDqnModel:
 
         ### Enviroment Configurations ###
         enviromentClass = config.get("enviromentClass")
-        episode_length = config.get("episode_length", 1000)
+        self.episode_length = config.get("episode_length", 1000)
         timeseries_observation_space = config.get("timeseries_obs", {})
         discrete_observation_space = config.get("discrete_obs", {})
         indicator_observation_space = config.get("indicator_obs", {})
@@ -255,7 +283,13 @@ class PairsDqnModel:
         exploration_fraction = config.get("exploration_fraction", 0.5)
         q_net_layers = config.get("q_net_layers", [])
         verbose_level = config.get('verbose_level', 1)
-
+        self.log = config.get('log', False)
+        
+        if self.log:
+            tb_log = "./dqn_tensorboard"
+        else:
+            tb_log = None
+            
         #Initialize some variables that are useful for later plotting
         self.token_pair = token_pair
         self.timeseries_keys = list(timeseries_observation_space.keys())
@@ -270,7 +304,7 @@ class PairsDqnModel:
 
         # Create the enviroment
         self.enviroment_dv = DummyVecEnv([lambda: enviromentClass(
-                    episode_length=episode_length,
+                    episode_length=self.episode_length,
                     indicator_obs = indicator_observation_space,
                     timeseries_obs = timeseries_observation_space,
                     discrete_obs = discrete_observation_space,
@@ -288,7 +322,7 @@ class PairsDqnModel:
             print(" \nTesting enviroment \n")
 
         #Create the testing enviroment
-        self.enviroment = enviromentClass(episode_length=episode_length,
+        self.enviroment = enviromentClass(episode_length=self.episode_length,
                                         indicator_obs = indicator_observation_space,
                                         timeseries_obs = timeseries_observation_space,
                                         discrete_obs = discrete_observation_space,
@@ -338,9 +372,18 @@ class PairsDqnModel:
             exploration_initial_eps=exploration_initial_eps,  # Start with full exploration
             exploration_final_eps=exploration_final_eps,   # Minimum exploration
             exploration_fraction=exploration_fraction,
-            device = device
-            #tensorboard_log="./dqn_tensorboard/"
+            device = device,
+            tensorboard_log = tb_log
         )
+        
+        self.model.learn(0)
+        
+        if self.log:
+            self.model.logger.record('model/q_net_architecture', str(self.model.q_net))
+            for key, value in config.items():
+                self.model.logger.record(f"model/{key}", str(value))
+        
+        self.model.logger.dump(step=0)
 
         if verbose:
             print("\nDQN Config Parameters\n")
@@ -362,11 +405,14 @@ class PairsDqnModel:
 
 
     def train(self,train_steps):
-        self.model.learn(total_timesteps=train_steps)
+        for i in tqdm( range (0,train_steps // self.episode_length), desc='Training Model', unit ='Episode' ):
+            self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=RewardLoggerCallback(log_interval=100))
         
-    def save(self):
+    def save(self, file_name):
+        #Check directory exists
+        os.makedirs("saved_models", exist_ok=True)
         # Save the model after training
-        self.model.save("saved_models/")
+        self.model.save(f"saved_models/{file_name}")
 
     def _generate_keyset(self,timeseries_keys,discrete_keys,indicator_keys,token_pair,excluded_keys = []):
 

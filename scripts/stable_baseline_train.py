@@ -53,7 +53,8 @@ pairs_config = {
     "token_pair" : ("BTCUSDT","ETHUSDT"),
     "z_score_context_length" : 150,
     "coint_context_length" : 150,
-    "dataset_file": "file",
+    "dataset_file": "data/dataset_60000_1h.h5",
+    "log" : True,
     
     
     ### Feature Extractor Config ###
@@ -77,7 +78,7 @@ pairs_config = {
     "exploration_final_eps": 0.05,
     "exploration_fraction": 0.5,
     "q_net_layers" : [32,32],
-    "verbose_level" : 1
+    "verbose_level" : 0
 }
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR SINGLE TOKEN TRADING ###
@@ -91,7 +92,7 @@ pairs_config = {
 ### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###
 
 Model = PairsDqnModel(pairs_config)
-Model.train(1000)
+Model.train(1001)
 Model.plot_episode()
 
 ### #############################################################
