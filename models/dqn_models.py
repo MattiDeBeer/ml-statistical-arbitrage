@@ -12,6 +12,7 @@ from collections import defaultdict
 from torch.nn import ReLU
 from torch.cuda import is_available
 import sys
+import os
 
 class DqnModel:
     def __init__(self, config):
@@ -364,9 +365,12 @@ class PairsDqnModel:
     def train(self,train_steps):
         self.model.learn(total_timesteps=train_steps)
         
-    def save(self):
+    def save(self, file_name):
+        #Check directory exists
+        os.makedirs("saved_models", exist_ok=True)
         # Save the model after training
-        self.model.save("saved_models/")
+        self.model.save(f"saved_models/{file_name}")
+
 
     def _generate_keyset(self,timeseries_keys,discrete_keys,indicator_keys,token_pair,excluded_keys = []):
 
