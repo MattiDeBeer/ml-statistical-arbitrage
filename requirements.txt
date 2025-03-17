@@ -7,5 +7,6 @@ nolds==0.6.1
 numpy==2.2.4
 python_binance==1.0.27
 stable_baselines3==2.5.0
+statsmodels==0.14.4
 torch==2.6.0
 tqdm==4.67.1
