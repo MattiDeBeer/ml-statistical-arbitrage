@@ -222,8 +222,7 @@ class RlTradingEnvToken(BinanceTradingEnv,gymnasium.Env):
         self.episode_length = kwargs.get('episode_length', 1000)
         self.token = kwargs.get('token', 'BTCUSDT')
         self.transaction_percentage = kwargs.get('transaction_percentage', 0.001)
-        self.dataset_filename = kwargs.get('dataset_filename', 'dataset_100000_1m.h5')
-        self.dataset_directory = kwargs.get('dataset_directory', 'data/')
+        self.dataset_filename = kwargs.get('dataset_file', 'data/dataset_100000_1m.h5')
         self.timeseries_obs = kwargs.get('timeseries_obs', {'open' : (10, -np.inf, np.inf)})
         self.discrerete_obs = kwargs.get('discrete_obs', {'is_bought' : 2, 'previous_action' : 2})
         self.indicator_keys = kwargs.get('indicator_obs', {}).keys()
@@ -252,6 +251,7 @@ class RlTradingEnvToken(BinanceTradingEnv,gymnasium.Env):
             print(f"Episode length: {self.episode_length}")
             print(f"Token: {self.token}")
             print(f"Transaction percentage: {self.transaction_percentage}")
+            print(f"Dataset: {self.dataset_filename}")
             cont_params = [{key : length} for key, length in self.timeseries_obs.items()]
             print(f"Continious keys: {cont_params}")
             print(f"Discrete keys: {self.discrerete_obs.keys()}")
@@ -263,7 +263,7 @@ class RlTradingEnvToken(BinanceTradingEnv,gymnasium.Env):
                 self.window_length = value[0]
 
         #load the price dataset
-        self.load_token_dataset(self.dataset_filename, directory = self.dataset_directory)
+        self.load_token_dataset(self.dataset_filename)
         
         # Define action and observation space
         self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Buy/Sell
@@ -428,8 +428,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         self.episode_length = kwargs.get('episode_length', 1000)
         self.token_pair = kwargs.get('token_pair', None)
         self.transaction_percentage = kwargs.get('transaction_percentage', 0.001)
-        self.dataset_filename = kwargs.get('dataset_filename', 'dataset_100000_1m.h5')
-        self.dataset_directory = kwargs.get('dataset_directory', 'data/')
+        self.dataset_filename = kwargs.get('dataset_file', 'data/dataset_100000_1m.h5')
         self.timeseries_obs = kwargs.get('timeseries_obs', {})
         self.discrerete_obs = kwargs.get('discrete_obs', {})
         self.indicator_obs = kwargs.get('indicator_obs', {})
@@ -478,6 +477,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
             print(f"Episode length: {self.episode_length}")
             print(f"Continious dim: {self.window_length}")
             print(f"Pair: {self.token_pair}")
+            print(f"Dataset: {self.dataset_filename}")
             print(f"Transaction percentage: {self.transaction_percentage}")
             print(f"Continious keys: {self.timeseries_obs.keys()}")
             print(f"Discrete keys: {self.discrerete_obs.keys()}")
@@ -486,7 +486,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
             print(f"GPU available {self.GPU_AVAILABLE}")
 
         #load the price dataset
-        self.load_token_dataset(self.dataset_filename, directory = self.dataset_directory)
+        self.load_token_dataset(self.dataset_filename)
         
         # Define action and observation space
         self.action_space = spaces.Discrete(2)  # 0 = Hold, 1 = Long on arb / exit arb position

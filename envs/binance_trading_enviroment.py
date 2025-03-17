@@ -186,7 +186,7 @@ class BinanceTradingEnv:
         if return_data:
             return self.klines
         
-    def load_token_dataset(self, filename='dataset_100000_1m.h5',directory = 'data/'):
+    def load_token_dataset(self, filename='data/dataset_100000_1m.h5'):
         """
         Loads a dataset from a hdf5 file and stores it in the dataset_klines attribute.
         Parameters:
@@ -196,14 +196,14 @@ class BinanceTradingEnv:
         None
         """
         # Set the dataset filename attribute
-        self.dataset_filename = directory+filename
+        self.dataset_filename = filename
 
         # If the dataset klines attribute does not exist, create it
         if not hasattr(self,'dataset_klines'):
             self.dataset_klines = {}
 
         # Open the hdf5 file
-        with h5py.File(directory+filename, 'r') as f:
+        with h5py.File(filename, 'r') as f:
 
             # Iterate through the tokens in the file
             for token in list(f.keys()):

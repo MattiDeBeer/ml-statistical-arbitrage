@@ -53,6 +53,7 @@ pairs_config = {
     "token_pair" : ("BTCUSDT","ETHUSDT"),
     "z_score_context_length" : 150,
     "coint_context_length" : 150,
+    "dataset_file": "file",
     
     
     ### Feature Extractor Config ###
@@ -63,7 +64,7 @@ pairs_config = {
     "lstm_hidden_size" : 10,
     "compile_flag" : False,
     "feature_dim" : 8,
-    "GPU_available" : True,
+    "GPU_available" : False,
     
     ### DQN Config ###
     "learning_rate" : 1e-3,
@@ -75,7 +76,7 @@ pairs_config = {
     "exploration_initial_eps": 1.0,
     "exploration_final_eps": 0.05,
     "exploration_fraction": 0.5,
-    "q_net_layers" : [5],
+    "q_net_layers" : [32,32],
     "verbose_level" : 1
 }
 

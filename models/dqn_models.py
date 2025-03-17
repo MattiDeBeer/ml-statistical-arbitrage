@@ -215,7 +215,7 @@ class DqnModel:
 class PairsDqnModel:
     def __init__(self, config):
 
-        required_keys = ["enviromentClass","token_pair","feature_extractor_class"]
+        required_keys = ["enviromentClass","token_pair","feature_extractor_class","dataset_file"]
         for key in required_keys:
             if key not in config:
                 raise ValueError(f"Key {key} is missing in the config dict")
@@ -232,7 +232,7 @@ class PairsDqnModel:
         z_score_context_length = config.get('z_score_context_length',15)
         coint_context_length = config.get('coint_context_length', 15)
         GPU_AVAILABLE = config.get('GPU_available', False)
-        print(GPU_AVAILABLE)
+        dataset_file = config.get('dataset_file' )
 
         ### Feature Extractor Configurations ###
         FeatureExtractorClass = config.get("feature_extractor_class", None)
@@ -279,7 +279,8 @@ class PairsDqnModel:
                     token_pair = token_pair,
                     z_score_context_length = z_score_context_length,
                     coint_context_length = coint_context_length,
-                    GPU_available = GPU_AVAILABLE
+                    GPU_available = GPU_AVAILABLE,
+                    dataset_file = dataset_file
 
         )])
         
@@ -297,6 +298,7 @@ class PairsDqnModel:
                                         z_score_context_length = z_score_context_length,
                                         coint_context_length = coint_context_length,
                                         GPU_available = GPU_AVAILABLE,
+                                        dataset_file = dataset_file
 
         )
 
