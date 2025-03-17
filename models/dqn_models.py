@@ -232,6 +232,7 @@ class PairsDqnModel:
         z_score_context_length = config.get('z_score_context_length',15)
         coint_context_length = config.get('coint_context_length', 15)
         GPU_AVAILABLE = config.get('GPU_available', False)
+        print(GPU_AVAILABLE)
 
         ### Feature Extractor Configurations ###
         FeatureExtractorClass = config.get("feature_extractor_class", None)

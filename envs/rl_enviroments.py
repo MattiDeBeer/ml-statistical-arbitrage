@@ -433,7 +433,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         self.timeseries_obs = kwargs.get('timeseries_obs', {})
         self.discrerete_obs = kwargs.get('discrete_obs', {})
         self.indicator_obs = kwargs.get('indicator_obs', {})
-        self.GPU_AVAILABLE = kwargs.get('GPU_AVAILABLE', False)
+        self.GPU_AVAILABLE = kwargs.get('GPU_available', False)
         
         if self.token_pair is None:
             print("You have selected the pairs trading enviroment, but have not provided a token pair.")
@@ -483,6 +483,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
             print(f"Discrete keys: {self.discrerete_obs.keys()}")
             print(f"Cointegration context length {self.coint_context_length}")
             print(f"z_score_context_length: {self.z_score_context_length}")
+            print(f"GPU available {self.GPU_AVAILABLE}")
 
         #load the price dataset
         self.load_token_dataset(self.dataset_filename, directory = self.dataset_directory)
