@@ -259,26 +259,30 @@ if __name__ == "__main__":
     z_score_keys = ['open']
     coint_p_value_keys = ['open']
 
-    with h5py.File(dataset_filename, "r") as dataset_file, h5py.File(processed_dataset_filename, "a") as processed_dataset_file :
+    context_lengths = [50,100,200,400]
 
-        dataset_keys = list(dataset_file.keys())
-        tokens = [item for item in dataset_keys if '-' not in item]
-        
-        for token in tokens:
+    for context_length in context_lengths:
 
-            calculate_and_append_log_returns(dataset_file[token],processed_dataset_file[token],log_return_keys)
+        with h5py.File(dataset_filename, "r") as dataset_file, h5py.File(processed_dataset_filename, "a") as processed_dataset_file :
 
-            calculate_and_append_adfuler(dataset_file[token],processed_dataset_file[token],adfuller_keys,context_length=5)
+            dataset_keys = list(dataset_file.keys())
+            tokens = [item for item in dataset_keys if '-' not in item]
+            
+            for token in tokens:
 
-        token_pairs = get_token_pairs(tokens)
-        
-        for token_pair in token_pairs:
+                calculate_and_append_log_returns(dataset_file[token],processed_dataset_file[token],log_return_keys)
 
-            calculate_and_append_z_score(dataset_file,processed_dataset_file,token_pair,z_score_keys,context_length = 200)
+                calculate_and_append_adfuler(dataset_file[token],processed_dataset_file[token],adfuller_keys,context_length=context_length)
 
-            calculate_and_append_coint_p_values(dataset_file,processed_dataset_file,token_pair,coint_p_value_keys,context_length=10,GPU=True)
+            token_pairs = get_token_pairs(tokens)
+            
+            for token_pair in token_pairs:
 
-        normalise_timeseries_lengths(processed_dataset_file)
+                calculate_and_append_z_score(dataset_file,processed_dataset_file,token_pair,z_score_keys,context_length = context_length)
+
+                calculate_and_append_coint_p_values(dataset_file,processed_dataset_file,token_pair,coint_p_value_keys,context_length=context_length,GPU=True)
+
+            normalise_timeseries_lengths(processed_dataset_file)
 
         split_datasets(processed_dataset_filename)
 
