@@ -17,8 +17,6 @@ def split_datasets(filename, train_ratio=0.8):
 
     input_filename = filename.split('/')[-1]
     data_dir = '/'.join(filename.split('/')[:-1]) + '/'
-    print(input_filename)
-    print(data_dir)
     
     # Ensure trailing slash
     if not data_dir.endswith('/'):
@@ -243,8 +241,8 @@ def normalise_timeseries_lengths(file):
 
 if __name__ == "__main__":
 
-    dataset_filename = "data/dataset_60000_1h.h5"
-    processed_dataset_filename = "data/processed_dataset_60000_1h.h5"
+    dataset_filename = "data/dataset_5000_1h.h5"
+    processed_dataset_filename = "data/processed_dataset_5000_1h.h5"
     
     # Delete processed file if it exists
     if os.path.exists(processed_dataset_filename):
@@ -280,11 +278,13 @@ if __name__ == "__main__":
 
                 calculate_and_append_z_score(dataset_file,processed_dataset_file,token_pair,z_score_keys,context_length = context_length)
 
-                calculate_and_append_coint_p_values(dataset_file,processed_dataset_file,token_pair,coint_p_value_keys,context_length=context_length,GPU=True)
+                calculate_and_append_coint_p_values(dataset_file,processed_dataset_file,token_pair,coint_p_value_keys,context_length=context_length,GPU=False)
 
-            normalise_timeseries_lengths(processed_dataset_file)
+        
+    with h5py.File(processed_dataset_filename, "a") as processed_dataset_file :
+        normalise_timeseries_lengths(processed_dataset_file)
 
-        split_datasets(processed_dataset_filename)
+    split_datasets(processed_dataset_filename)
 
 
             
