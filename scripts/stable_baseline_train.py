@@ -42,6 +42,8 @@ single_config = {
 
 pairs_config = {
     
+    "run_id" : "0001",
+
     ### Enviroment Config ###
     "enviromentClass": RlTradingEnvPairs,
     "episode_length": 500,
@@ -56,8 +58,6 @@ pairs_config = {
     "log" : True,
     "dataset_file": "data/processed_dataset_5000_1h_train.h5",
     "test_dataset": "data/processed_dataset_5000_1h_test.h5",
-
-    
     
     ### Feature Extractor Config ###
     "feature_extractor_class" : PairsFeatureExtractor,
@@ -80,7 +80,9 @@ pairs_config = {
     "exploration_final_eps": 0.05,
     "exploration_fraction": 0.5,
     "q_net_layers" : [32,32],
-    "verbose_level" : 0
+    "verbose_level" : 0,
+    "tensorboard_log_file" : "./dqn_tensorboard",
+    "model_save_folder" : "saved_models/"
 }
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR SINGLE TOKEN TRADING ###

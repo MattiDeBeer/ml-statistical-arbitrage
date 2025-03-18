@@ -302,9 +302,15 @@ class PairsDqnModel:
         q_net_layers = config.get("q_net_layers", [])
         verbose_level = config.get('verbose_level', 1)
         self.log = config.get('log', False)
+
+        #save configs
+        run_id = config.get("run_id", "0000")
+        tensorboard_locaiton = config.get("tensorboard_log_file", "./dqn_tensorboard")
+        self.model_save_location = config.get("model_save_folder", "saved_models/")
+        self.model_save_location = self.model_save_location + "/" + str(run_id) + "/"
         
         if self.log:
-            tb_log = "./dqn_tensorboard"
+            tb_log = tensorboard_locaiton+"/"+str(run_id)+"/"
         else:
             tb_log = None
             
@@ -429,13 +435,12 @@ class PairsDqnModel:
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
                 self.eval_episode(eval_steps)
+                self.save(f"episode_{i}")
 
         
     def save(self, file_name):
-        #Check directory exists
-        os.makedirs("saved_models", exist_ok=True)
-        # Save the model after training
-        self.model.save(f"saved_models/{file_name}")
+        # Save the model
+        self.model.save(f"{self.model_save_location}{file_name}")
 
     def _generate_keyset(self,timeseries_keys,discrete_keys,indicator_keys,token_pair,excluded_keys = []):
 
