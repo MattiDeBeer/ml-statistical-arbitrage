@@ -18,28 +18,6 @@ import numpy as np
 from collections import deque
 import os
 
-class RewardLoggerCallback(BaseCallback):
-    def __init__(self, log_interval=1000, verbose=0):
-        super().__init__(verbose)
-        self.log_interval = log_interval
-        self.rewards = deque(maxlen=100)
-        self.step = 0
-
-    def _on_step(self):
-        self.step += 1
-        if "rewards" in self.locals:
-            reward = self.locals["rewards"][0]
-            self.rewards.append(reward)
-
-        if (self.step % self.log_interval) == 0:
-            avg_reward = np.mean(self.rewards)
-            self.logger.record("reward/mean_100_steps", avg_reward)
-            self.logger.dump(self.num_timesteps)
-            sys.stdout.write(f"\rStep: {self.num_timesteps} | Avg Reward: {avg_reward:.5f}   ")
-            sys.stdout.flush()  # Flush to update in-place
-        
-        return True
-
 class EpisodeRewardLoggerCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose=verbose)
@@ -444,10 +422,14 @@ class PairsDqnModel:
                 sys.exit()
 
 
-    def train(self,train_steps):
-        callbacks = [RewardLoggerCallback(log_interval=100), EpisodeRewardLoggerCallback()]
-        for i in tqdm( range (0,train_steps // self.episode_length), desc='Training Model', unit ='Episode' ):
+    def train(self,episode_num,eval_frequency = 5, eval_steps=5):
+        train_steps = episode_num * self.episode_length
+        callbacks = [EpisodeRewardLoggerCallback()]
+        for i in tqdm( range (0,episode_num), desc='Training Model', unit ='Episode' ):
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
+            if i % eval_frequency == 0:
+                self.eval_episode(eval_steps)
+
         
     def save(self, file_name):
         #Check directory exists
@@ -480,7 +462,38 @@ class PairsDqnModel:
             indicator_keys.append(token_pair[1]+ '_adfuller')
 
         return lstm_keys, discrete_keys, indicator_keys
-        
+    
+    def eval_episode(self,num_episodes):
+        total_rewards = []
+        percentage_changes = []
+
+        for _ in range(num_episodes):
+            done = False
+            actions = []
+            enviroment = self.enviroment
+            obs, _ = enviroment.reset()
+            start_cash = self.enviroment.money
+            total_reward = 0
+            done = False
+
+            # Run a single episode
+            while not done:
+                action, _state = self.model.predict(obs, deterministic=True)
+                obs, reward, done, truncated, info  = enviroment.step(action)
+                total_reward += reward
+
+                self.enviroment.close_all_positions()
+                end_cash = self.enviroment.money
+
+                percentage_change = ((end_cash - start_cash) / start_cash) * 100
+                total_rewards.append(total_reward)
+                percentage_changes.append(percentage_change)
+
+        avg_reward = np.mean(total_rewards)
+        avg_percentage_change = np.mean(percentage_changes)
+
+        print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
+        print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
         
     def plot_episode(self,excluded_keys = []):
         
