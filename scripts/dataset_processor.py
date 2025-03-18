@@ -9,53 +9,69 @@ from cupy.linalg import lstsq
 import shutil
 
 
-def split_datasets(filename, train_ratio=0.8):
-    """ 
-    Splits the dataset into train/test, then calculates log returns
-    on each split file. 
-    """
 
+def split_datasets(filename, train_ratio=0.7, val_ratio=0.15):
+    """ 
+    Splits the dataset into train, validation, and test sets,
+    then (optionally) processes each split (e.g., calculates log returns).
+    
+    Parameters
+    ----------
+    filename : str
+        The path to the original dataset file.
+    train_ratio : float, default=0.6
+        Proportion of data to use for training.
+    val_ratio : float, default=0.2
+        Proportion of data to use for validation.
+        (Test set will use 1 - train_ratio - val_ratio of the data.)
+    """
+    # Determine directory and file names
     input_filename = filename.split('/')[-1]
     data_dir = '/'.join(filename.split('/')[:-1]) + '/'
-    
-    # Ensure trailing slash
     if not data_dir.endswith('/'):
         data_dir += '/'
-        
     full_path = os.path.join(data_dir, input_filename)
     
     # Derive output filenames
     base_name, ext = os.path.splitext(input_filename)
     train_file = os.path.join(data_dir, f"{base_name}_train{ext}")
+    val_file   = os.path.join(data_dir, f"{base_name}_val{ext}")
     test_file  = os.path.join(data_dir, f"{base_name}_test{ext}")
     
-    # 1) Split into train/test
+    # Open the original file and create new files for each split
     with h5py.File(full_path, "r") as hf_in, \
          h5py.File(train_file, "w") as hf_train, \
-         h5py.File(test_file,  "w") as hf_test:
+         h5py.File(val_file, "w") as hf_val, \
+         h5py.File(test_file, "w") as hf_test:
          
-        tokens = list(hf_in.keys())  # e.g. ['BTCUSDT', 'ETHUSDT']
+        tokens = list(hf_in.keys())  # e.g., ['BTCUSDT', 'ETHUSDT']
         
-        for token in tqdm(tokens, desc="Splitting into train/test", unit="token"):
+        for token in tqdm(tokens, desc="Splitting dataset", unit="token"):
             group_in = hf_in[token]
             group_train = hf_train.create_group(token)
+            group_val   = hf_val.create_group(token)
             group_test  = hf_test.create_group(token)
             
             for dset_key in group_in.keys():
                 data = group_in[dset_key][:]
-                
-                # Split index
                 n = data.shape[0]
-                split_idx = int(n * train_ratio)
-
+                # Compute split indices
+                train_end = int(n * train_ratio)
+                val_end = int(n * (train_ratio + val_ratio))
+                
                 # Write train split
                 group_train.create_dataset(
-                    dset_key, data=data[:split_idx],
+                    dset_key, data=data[:train_end],
+                    maxshape=(None,), compression="gzip"
+                )
+                # Write validation split
+                group_val.create_dataset(
+                    dset_key, data=data[train_end:val_end],
                     maxshape=(None,), compression="gzip"
                 )
                 # Write test split
                 group_test.create_dataset(
-                    dset_key, data=data[split_idx:],
+                    dset_key, data=data[val_end:],
                     maxshape=(None,), compression="gzip"
                 )
     
