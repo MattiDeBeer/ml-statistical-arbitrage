@@ -204,7 +204,6 @@ class BinanceTradingEnv:
 
         # Open the hdf5 file
         with h5py.File(filename, 'r') as f:
-
             # Iterate through the tokens in the file
             for token in list(f.keys()):
                 token_klines = {}
@@ -214,7 +213,7 @@ class BinanceTradingEnv:
                     if 'dataset_length' not in self.__dict__:
                         self.dataset_length = token_klines[timeseries_key].shape[0]
                     else:
-                        assert self.dataset_length == token_klines[timeseries_key].shape[0], "The program detected that some of the timeseries in the dataset have different lengths. Ensure all timeseries have the same length"
+                        assert self.dataset_length == token_klines[timeseries_key].shape[0], f"The program detected that {token} {timeseries_key} had a different length to the rest. Ensure all timeseries have the same length"
 
                 # Add the token klines to the dataset klines attribute
                 self.dataset_klines[token] = token_klines
@@ -229,6 +228,8 @@ class BinanceTradingEnv:
         Returns:
         dict: If return_data is True, returns a dictionary containing the generated episode data.
         """
+
+        assert self.dataset_length > length, f"The dataset is of length {self.dataset_length}, but you have requested and episode of length {length}"
 
         # If the episode klines attribute does not exist, create it
         if not hasattr(self,'klines'):
@@ -280,6 +281,15 @@ class BinanceTradingEnv:
                     self.max_time = klines[key].shape[0]
                 # Add the generated episode to the episode klines attribute
                 self.klines[token] = klines
+
+            self.episode_cache = {}
+            for i in range(len(tokens)):
+                for j in range(i + 1, len(tokens)):
+                    pair = f"{tokens[i]}-{tokens[j]}"
+                    if pair in self.dataset_klines:
+                        self.episode_cache[pair] = {}
+                        for key in self.dataset_klines[pair]:
+                            self.episode_cache[pair][key] = self.dataset_klines[pair][key]
 
             # If return_data is True, return the generated episode data
             if return_data:
@@ -341,7 +351,7 @@ class BinanceTradingEnv:
                 for key, values in self.klines[symbol].items():
 
                     # Add the historical prices to the temporary dictionary
-                    tmp_dict[key] = values[self.time-amount:self.time]
+                    tmp_dict[key] = values[1+self.time-amount:self.time+1]
                     
                 # Add the historical prices of the specific token to the historical klines attribute
                 self.historical_klines[symbol] = tmp_dict
@@ -375,8 +385,8 @@ class BinanceTradingEnv:
         Returns:
         dict: If return_data is True, returns a dictionary containing the z-scores data.
         """
-
-        excluded_keys = ['volume','time']
+        #added excluded keys to remove computational overhead. Remove these if you'd like to use them
+        excluded_keys = ['volume','time','adfuller_open_100', 'adfuller_open_200', 'adfuller_open_400', 'adfuller_open_50', 'log_return_close', 'log_return_high', 'log_return_low', 'log_return_open', 'close', 'high', 'low']
 
         # Ensure that the tokens are strings
         assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be strings"
@@ -395,24 +405,27 @@ class BinanceTradingEnv:
             # If the key is not in the excluded keys
             if key not in excluded_keys:
 
-                # Get the timeseries for the two tokens
-                timeseries1 = klines[token1][key]
-                try:
-                    # If the key is in the second token, calculate the z-scores
-                    timeseries2 = klines[token2][key]
-        
-                    # Calculate the hedge ratio
-                    hedge_ratio = self.calc_hedge_ratio(timeseries1,timeseries2)
+                if (hasattr(self,'episode_cache')) and (f"{token1}-{token2}" in self.episode_cache) and (f"z_score_{key}_{length}" in self.episode_cache.get(f"{token1}-{token2}",{'none': None})):
+                    z_scores_dict[key] = self.episode_cache[f"{token1}-{token2}"][f"z_score_{key}_{length}"][self.time-length+1: self.time+1]
+                else:
+                    # Get the timeseries for the two tokens
+                    timeseries1 = klines[token1][key]
+                    try:
+                        # If the key is in the second token, calculate the z-scores
+                        timeseries2 = klines[token2][key]
+            
+                        # Calculate the hedge ratio
+                        hedge_ratio = self.calc_hedge_ratio(timeseries1,timeseries2)
+                        
+                        # Calculate the spread and z-scores
+                        spread = timeseries1 - hedge_ratio * timeseries2
+                        z_scores = (spread - np.mean(spread)) / np.std(spread)
+                        z_scores_dict[key] = z_scores
                     
-                    # Calculate the spread and z-scores
-                    spread = timeseries1 - hedge_ratio * timeseries2
-                    z_scores = (spread - np.mean(spread)) / np.std(spread)
-                    z_scores_dict[key] = z_scores
-                
-                # If the key is not in the second token, raise a KeyError
-                except KeyError as e:
-                    print(f"Timeseries {key}, was found in the {token1} dataset but not the {token2}")
-                    z_scores_dict[key] = None
+                    # If the key is not in the second token, raise a KeyError
+                    except KeyError as e:
+                        print(f"Timeseries {key}, was found in the {token1} dataset but not the {token2}")
+                        z_scores_dict[key] = None
 
         return z_scores_dict
     
@@ -441,7 +454,7 @@ class BinanceTradingEnv:
         # Get critical value (normal approximation for speed)
         p_value = 2 * (1 - norm.cdf(jnp.abs(test_stat)))
          
-        return test_stat, p_value
+        return p_value
 
     def cupy_cointegration_test(self,y1, y2):
         """
@@ -460,7 +473,7 @@ class BinanceTradingEnv:
         residuals = y1 - (X @ beta)  # Compute residuals
         test_stat, p_value = self.jax_adf_test(cp.asnumpy(residuals))  # Apply fast ADF test
         
-        return test_stat, p_value
+        return p_value
                 
     def calc_coint_values_GPU(self,token1,token2,length,key='open'):
         """
@@ -477,7 +490,7 @@ class BinanceTradingEnv:
         assert isinstance(token1,str) and isinstance(token2,str), "Tokens must be specified as string"
 
         # Ensure that the tokens are in the loaded dataset
-        assert token1 in self.dataset_klines and token1 in self.dataset_klines, "Specified tokens were not fount in the loaded dataset"
+        assert token1 in self.dataset_klines and token1 in self.dataset_klines, "Specified tokens were not fount in the loaded dataset"        
         
         # Get the historical prices for the two tokens
         klines = self.get_historical_prices([token1,token2],length)
@@ -487,14 +500,24 @@ class BinanceTradingEnv:
         asset2 = klines[token2][key]
         
         #preform adf on asset prices, this checks to see if the time series is stationary
-        adf_result_asset1 = self.jax_adf_test(asset1)
-        adf_result_asset2 = self.jax_adf_test(asset2)
+        if f"adfuller_{key}_{length}" in klines[token1]:
+            adf_result_asset1 = klines[token1][f"adfuller_{key}_{length}"][-1]
+        else:
+            adf_result_asset1 = self.jax_adf_test(asset1)
 
-        # Calculate the cointegration test p-value and score
-        stats, p_value, = self.cupy_cointegration_test(asset1, asset2)
+        if f"adfuller_{key}_{length}" in klines[token2]:
+            adf_result_asset2 = klines[token2][f"adfuller_{key}_{length}"][-1]
+        else:
+            adf_result_asset2 = self.jax_adf_test(asset1)
+    
+        if (hasattr(self,'episode_cache')) and (f"{token1}-{token2}" in self.episode_cache) and (f"coint_p_value_{key}_{length}" in self.episode_cache.get(f"{token1}-{token2}",{'none': None})):
+            p_value = self.episode_cache[f"{token1}-{token2}"][f"coint_p_value_{key}_{length}"][self.time]
+        else:
+            # Calculate the cointegration test p-value and score
+            p_value, = self.cupy_cointegration_test(asset1, asset2)
         
 
-        return p_value, adf_result_asset1[1], adf_result_asset2[1]
+        return p_value, adf_result_asset1, adf_result_asset2
     
     def calc_coint_values(self,token1,token2,length,key='open'):
         """
@@ -512,6 +535,8 @@ class BinanceTradingEnv:
 
         # Ensure that the tokens are in the loaded dataset
         assert token1 in self.dataset_klines and token1 in self.dataset_klines, "Specified tokens were not fount in the loaded dataset"
+
+        
         
         # Get the historical prices for the two tokens
         klines = self.get_historical_prices([token1,token2],length)
@@ -521,13 +546,24 @@ class BinanceTradingEnv:
         asset2 = klines[token2][key]
         
         #preform adf on asset prices, this checks to see if the time series is stationary
-        adf_result_asset1 = adfuller(asset1)
-        adf_result_asset2 = adfuller(asset2)
+        if f"adfuller_{key}_{length}" in klines[token1]:
+            adf_result_asset1 = klines[token1][f"adfuller_{key}_{length}"][-1]
+        else:
+            adf_result_asset1 = adfuller(asset1)[1]
 
-        # Calculate the cointegration test p-value and score
-        score, p_value, _ = coint(asset1, asset2)
+        if f"adfuller_{key}_{length}" in klines[token2]:
+            adf_result_asset2 = klines[token2][f"adfuller_{key}_{length}"][-1]
+        else:
+            adf_result_asset2 = adfuller(asset1)[1]
+
+
+        if (hasattr(self,'episode_cache')) and (f"{token1}-{token2}" in self.episode_cache) and (f"coint_p_value_{key}_{length}" in self.episode_cache.get(f"{token1}-{token2}",{'none': None})):
+            p_value = self.episode_cache[f"{token1}-{token2}"][f"coint_p_value_{key}_{length}"][self.time]
+        else:
+            # Calculate the cointegration test p-value and score
+            p_value = coint(asset1, asset2)[1]
         
-        return p_value, adf_result_asset1[1], adf_result_asset2[1]
+        return p_value, adf_result_asset1, adf_result_asset2
         
     
     def get_current_portfolio_value(self):
