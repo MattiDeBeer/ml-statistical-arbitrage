@@ -17,12 +17,17 @@ keys.txt
 
 #tensorboard verbosing
 dqn_tensorboard/
+tensorboard_log/
+
 
 #datasets
 data/
 
 #profiling
 profiling-results/
+
+#models
+saved_models
 
 # Other untracked files
 =2.0
