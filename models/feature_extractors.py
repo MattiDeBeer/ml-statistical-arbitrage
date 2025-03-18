@@ -224,7 +224,9 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
         assert (len (self.indicator_keys) != None) and (len(self.disc_keys) != None) and (len(self.timeseries_keys) != None), "You must provide at least on observation key"
 
         assert not self.token_pair is None, "You must provide the token pair to the feature extractor"
-        
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         #create empty lstm keys
         self.lstm_keys = []
 
@@ -330,7 +332,7 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
     def forward(self, observations):
 
         #Initialize discrete obervation tensor
-        disc_obs = [torch.tensor([])]
+        disc_obs = [torch.tensor([]).to(self.device)]
 
         #itterate through all discrete observations and concatenate them
         for key in self.disc_keys:
@@ -338,7 +340,7 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
         disc_obs = torch.cat(disc_obs, dim = -1)
 
         #initialise indicator observation tensor
-        indicator_obs = [torch.tensor([])]
+        indicator_obs = [torch.tensor([]).to(self.device)]
 
         #itterate through all continious observations and concatenate them
         for key in self.indicator_keys:
@@ -346,7 +348,7 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
         indicator_obs = torch.cat(indicator_obs, dim = -1)
 
         #create empty hidden state tensor
-        hidden_states = [torch.tensor([])]
+        hidden_states = [torch.tensor([]).to(self.device)]
 
         #Apply LSTM to each timeseries observation and extract the final hidden state
         for key, lstm in self.lstm_dict.items():
