@@ -33,9 +33,49 @@ class RewardLoggerCallback(BaseCallback):
 
         if (self.step % self.log_interval) == 0:
             avg_reward = np.mean(self.rewards)
+            self.logger.record("reward/mean_100_steps", avg_reward)
+            self.logger.dump(self.num_timesteps)
             sys.stdout.write(f"\rStep: {self.num_timesteps} | Avg Reward: {avg_reward:.5f}   ")
             sys.stdout.flush()  # Flush to update in-place
         
+        return True
+
+class EpisodeRewardLoggerCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose=verbose)
+        self.current_episode_reward = 0.0
+        self.episode_count = 0 
+        self.num_steps_in_episode = 0
+
+    def _on_step(self) -> bool:
+        # 1) Accumulate the step’s reward
+        if "rewards" in self.locals:
+            reward = self.locals["rewards"][0]
+            self.current_episode_reward += reward
+            self.num_steps_in_episode +=1
+            
+
+        # 2) Check if the episode has ended
+        if "dones" in self.locals:
+            done_array = self.locals["dones"]
+            if done_array[0]:
+                self.episode_count +=1
+
+                # log total reward for episode to TB
+                self.logger.record("episode/total_reward", self.current_episode_reward)
+                
+                #log average reward to TB
+                if self.num_steps_in_episode > 0:
+                    avg_reward = self.current_episode_reward / self.num_steps_in_episode
+                    self.logger.record("episode/average_reward", avg_reward)
+                    
+                #Dump to TB using episode counter
+                self.logger.dump(self.episode_count)
+                
+                # Reset for the next episode
+                self.current_episode_reward = 0.0
+                self.num_steps_in_episode = 0
+
         return True
 
 class DqnModel:
@@ -405,8 +445,9 @@ class PairsDqnModel:
 
 
     def train(self,train_steps):
+        callbacks = [RewardLoggerCallback(log_interval=100), EpisodeRewardLoggerCallback()]
         for i in tqdm( range (0,train_steps // self.episode_length), desc='Training Model', unit ='Episode' ):
-            self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=RewardLoggerCallback(log_interval=100))
+            self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
         
     def save(self, file_name):
         #Check directory exists
@@ -493,7 +534,7 @@ class PairsDqnModel:
             ax.plot(array)  # Line plot
             ax.scatter(buy_indices, [array[i] for i in  buy_indices], marker='^', color='green', label="Buy arb", s=100, zorder=5)
             ax.scatter(sell_indices, [array[i] for i in sell_indices] , marker='v', color='red', label="Exit arb", s=100, zorder=5)
-            ax.set_title(key)  # Use dictionary key as title
+            ax.set_title(key)  # Use dictionary key as title	
             ax.grid(True)
             
         print(f"Total reward for this episode: {total_reward}")
