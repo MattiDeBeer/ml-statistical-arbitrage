@@ -194,10 +194,10 @@ def calculate_and_append_z_score(dataset_file, processed_dataset_file,pair,z_sco
             timeseries1 = dataset_file[token1][key][:]
             timeseries2 = dataset_file[token2][key][:]
 
-            z_scores = calculate_z_scores(timeseries1,timeseries2,f"z_score_{pair}_{context_length}",context_length=context_length)
+            z_scores = calculate_z_scores(timeseries1,timeseries2,f"z_score_{pair}_{key}_{context_length}",context_length=context_length)
 
             create_group_if_not_exists(pair,processed_dataset_file)
-            append_dataset(f"z_score_{context_length}", processed_dataset_file[pair], z_scores)
+            append_dataset(f"z_score_{key}_{context_length}", processed_dataset_file[pair], z_scores)
 
 def calculate_and_append_coint_p_values(dataset_file, processed_dataset_file, pair, coint_p_value_keys, context_length=10,GPU = False):
     token1, token2 = pair.split('-')
