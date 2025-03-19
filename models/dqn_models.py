@@ -306,7 +306,7 @@ class PairsDqnModel:
         #save configs
         run_id = config.get("run_id", "0000")
         tensorboard_locaiton = config.get("tensorboard_log_file", "./dqn_tensorboard")
-        self.model_save_location = config.get("model_save_folder", "saved_models/")
+        self.model_save_location = config.get("model_save_folder", "saved_models")
         self.model_save_location = self.model_save_location + "/" + str(run_id) + "/"
         
         if self.log:
@@ -499,8 +499,15 @@ class PairsDqnModel:
 
         print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
         print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
+
+    def plot_episode(self,excluded_keys = [], action_num = 1):
+        if action_num == 1:
+            self.plot_episode_1_action(excluded_keys = excluded_keys)
+        elif action_num == 2:
+            self.plot_episode_2_action(excluded_keys = excluded_keys)
+
         
-    def plot_episode(self,excluded_keys = []):
+    def plot_episode_1_action(self,excluded_keys = []):
         
         timeseries_keys, discrete_keys, indicator_keys = self._generate_keyset(self.timeseries_keys,self.discrete_keys,self.indicator_keys,self.token_pair, excluded_keys=excluded_keys)
 
@@ -559,3 +566,58 @@ class PairsDqnModel:
 
         plt.tight_layout()  # Adjust layout to avoid overlapping
         plt.show()
+
+
+    def plot_episode_2_action(self,excluded_keys = []):
+            
+            timeseries_keys, discrete_keys, indicator_keys = self._generate_keyset(self.timeseries_keys,self.discrete_keys,self.indicator_keys,self.token_pair, excluded_keys=excluded_keys)
+
+            done = False
+            actions = []
+            enviroment = self.enviroment
+            obs, _ = enviroment.reset()
+            total_reward = 0
+            done = False
+            timeseries_observations = defaultdict(list)
+            indicator_observations = defaultdict(list)
+            price_observations = defaultdict(list)
+
+            # Run a single episode
+            while not done:
+                action, _state = self.model.predict(obs, deterministic=True)
+                price_observations[self.token_pair[0]].append(enviroment.get_current_price(self.token_pair[0]))
+                price_observations[self.token_pair[1]].append(enviroment.get_current_price(self.token_pair[1]))
+                actions.append(action)
+                obs, reward, done, truncated, info  = enviroment.step(action)
+                total_reward += reward
+
+                for key in timeseries_keys:
+                    timeseries_observations[key].append(obs[key][-1])
+                
+                for key in indicator_keys:
+                    indicator_observations[key].append(obs[key][0])
+
+            merged_dict = timeseries_observations | indicator_observations | price_observations
+            num_plots = len(merged_dict.keys())
+
+            if num_plots == 0:
+                raise ValueError("You must provide sufficient keys to make a plot. It's possible you have chosen to exclude too many keys")
+            
+            actions = np.array(actions)
+
+            buy_indices = np.where(actions == 1)[0]
+            sell_indices = np.where(actions == 2)[0]
+            
+            fig, axes = plt.subplots(num_plots, 1, figsize=(8, num_plots * 3))
+
+            for ax, (key, array) in zip(axes, merged_dict.items()):
+                ax.plot(array)  # Line plot
+                ax.scatter(buy_indices, [array[i] for i in  buy_indices], marker='^', color='green', label="Buy arb", s=100, zorder=5)
+                ax.scatter(sell_indices, [array[i] for i in sell_indices] , marker='v', color='red', label="Exit arb", s=100, zorder=5)
+                ax.set_title(key)  # Use dictionary key as title	
+                ax.grid(True)
+                
+            print(f"Total reward for this episode: {total_reward}")
+
+            plt.tight_layout()  # Adjust layout to avoid overlapping
+            plt.show()

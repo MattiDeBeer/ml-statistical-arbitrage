@@ -2,7 +2,7 @@
 
 from models.dqn_models import DqnModel, PairsDqnModel
 from models.feature_extractors import SingleTokenFeatureExtractor, PairsFeatureExtractor
-from envs.rl_enviroments import RlTradingEnvToken, RlTradingEnvSin, RlTradingEnvPairs
+from envs.rl_enviroments import RlTradingEnvToken, RlTradingEnvSin, RlTradingEnvPairs, RlTradingEnvPairsExtendedActions
 import numpy as np
 
 
@@ -82,7 +82,52 @@ pairs_config = {
     "q_net_layers" : [32,32],
     "verbose_level" : 0,
     "tensorboard_log_file" : "./dqn_tensorboard",
-    "model_save_folder" : "saved_models/"
+    "model_save_folder" : "saved_models"
+}
+
+pairs_config_extended_actions = {
+    
+    "run_id" : "0001",
+
+    ### Enviroment Config ###
+    "enviromentClass": RlTradingEnvPairsExtendedActions,
+    "episode_length": 500,
+    "timeseries_obs" : {'z_score' : (10, -np.inf, np.inf)},
+    "discrete_obs" : {'is_bought' : 2, 'previous_action' : 3},
+    "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1), 'amount_bought': (0,np.inf)},
+    "verbose" : False,
+    "transaction_percentage" : 0,
+    "token_pair" : ("BTCUSDT","ETHUSDT"),
+    "z_score_context_length" : 100,
+    "coint_context_length" : 100,
+    "log" : True,
+    "dataset_file": "data/processed_dataset_5000_1h_train.h5",
+    "test_dataset": "data/processed_dataset_5000_1h_test.h5",
+    
+    ### Feature Extractor Config ###
+    "feature_extractor_class" : PairsFeatureExtractor,
+    "combiner_layers" : [10],
+    "disc_layers" : [5,4],
+    "indicator_layers" : [3,2],
+    "lstm_hidden_size" : 10,
+    "compile_flag" : False,
+    "feature_dim" : 8,
+    "GPU_available" : False,
+    
+    ### DQN Config ###
+    "learning_rate" : 1e-3,
+    "buffer_size" : 1000,
+    "learning_starts": 50,
+    "batch_size": 32,
+    "gamma": 0.99,
+    "target_update_interval": 500,
+    "exploration_initial_eps": 1.0,
+    "exploration_final_eps": 0.05,
+    "exploration_fraction": 0.5,
+    "q_net_layers" : [32,32],
+    "verbose_level" : 0,
+    "tensorboard_log_file" : "./dqn_tensorboard",
+    "model_save_folder" : "saved_models"
 }
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR SINGLE TOKEN TRADING ###
@@ -95,9 +140,20 @@ pairs_config = {
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###
 
-Model = PairsDqnModel(pairs_config)
-Model.train(20,eval_frequency=5,eval_steps=5)
+#Model = PairsDqnModel(pairs_config)
+#Model.train(1,eval_frequency=5,eval_steps=5)
+#Model.plot_episode(action_num=1)
 #Model.save("test")
-#Model.plot_episode()
+#
+
+### #############################################################
+
+### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING WITH EXTENDED ACTIONS ###
+
+Model = PairsDqnModel(pairs_config_extended_actions)
+Model.train(1,eval_frequency=5,eval_steps=5)
+Model.plot_episode(action_num=2)
+#Model.save("test")
+#
 
 ### #############################################################
