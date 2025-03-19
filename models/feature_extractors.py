@@ -3,6 +3,7 @@ from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch.nn as nn
 from copy import deepcopy
+import numpy as np
 
 #Define the custom feature extractor (for dictionary input space)
 class SingleTokenFeatureExtractor(BaseFeaturesExtractor):
@@ -197,15 +198,6 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
         #Get the compile flag
         compile_flag = kwargs.get("compile_flag", False)
 
-        #Get the continious observation space keys
-        self.timeseries_keys = kwargs.get("timeseries_obs", {}).keys()
-
-        #get the indicator observations
-        self.indicator_keys = deepcopy(kwargs.get("indicator_obs", {})).keys()
-
-        #Get the discrete observation space keys
-        self.disc_keys = kwargs.get("discrete_obs", {}).keys()
-
         #get the indicator network layers
         self.indicator_layers = deepcopy(kwargs.get("indicator_layers", [0]))
 
@@ -220,42 +212,34 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
 
         self.token_pair = kwargs.get("token_pair", None)
 
-        #Assert that the network has some parameters
-        assert (len (self.indicator_keys) != None) and (len(self.disc_keys) != None) and (len(self.timeseries_keys) != None), "You must provide at least on observation key"
-
-        assert not self.token_pair is None, "You must provide the token pair to the feature extractor"
-
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        #create empty lstm keys
-        self.lstm_keys = []
+        indicator_obs = {}
+        continuous_obs = {}
+        disc_obs = {}
 
-        #For itterate through each timeseries key
-        for key in self.timeseries_keys:
+        for key, space in observation_space.spaces.items():
+            if isinstance(space, spaces.Box):
+                if space.shape == (1,):  # Single-element Box -> Indicator
+                    indicator_obs[key] = 1
+                else:  # Multi-dimensional Box -> Continuous
+                    continuous_obs[key] = space.shape[0]
+            elif isinstance(space, spaces.Discrete):  # Discrete space
+                disc_obs[key] = space.n
 
-            #check to see if key is z_score
-            if key != 'z_score':
+        self.disc_keys = list(disc_obs.keys())
+        self.cont_keys = list(continuous_obs.keys())
+        self.indicator_keys = list(indicator_obs.keys())
 
-                #If not, create an LSTM key for each tokes
-                self.lstm_keys.append(self.token_pair[0] + '_' + key)
-                self.lstm_keys.append(self.token_pair[1] + '_' + key)
-            else:
-
-                #create one z_score key for both tokens
-                self.lstm_keys.append('z_score')
-
-        #If adfuller is in the indicator keys, create a key for each token
-        if 'adfuller' in self.indicator_keys:
-            self.indicator_keys = list(self.indicator_keys)
-            self.indicator_keys.remove('adfuller')
-            self.indicator_keys.append(self.token_pair[0] + '_adfuller')
-            self.indicator_keys.append(self.token_pair[1]+ '_adfuller')
+        #Assert that the network has some parameters
+        assert (len (self.indicator_keys) != None) and (len(self.disc_keys) != None) and (len(self.cont_keys) != None), "You must provide at least on observation key"
+        assert not self.token_pair is None, "You must provide the token pair to the feature extractor"
 
         #check to see if theres indicator keys
         if len(self.indicator_keys) != 0:
 
             #Add the indicator net input size to the config
-            self.indicator_layers.insert(0,len(self.indicator_keys))
+            self.indicator_layers.insert(0,np.sum(list(indicator_obs.values())))
 
             #create the indicator network
             self.indicator_net = nn.Sequential()
@@ -275,7 +259,7 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
         if len(self.disc_keys) != 0:
 
             #Add the discrete net input size to the config
-            self.disc_layers.insert(0,len(self.disc_keys)*2)
+            self.disc_layers.insert(0,np.sum(list(disc_obs.values())))
 
             #create discrete network and add a flatten layer
             self.disc_net = nn.Sequential(nn.Flatten())
@@ -292,13 +276,13 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
             self.disc_net = lambda x : x
         
         #check for timeseries keys
-        if len(self.lstm_keys) != 0:
+        if len(self.cont_keys) != 0:
 
             #create a lstm dictionary
             self.lstm_dict = nn.ModuleDict({})
 
             #populate dictionary with LSTM models for each timeseries key
-            for key in self.lstm_keys:
+            for key in self.cont_keys:
                 self.lstm_dict[key] = nn.LSTM(1, lstm_hidden_size, batch_first=True)
         else:
 
@@ -308,7 +292,7 @@ class PairsFeatureExtractor(BaseFeaturesExtractor):
             self.lstm_dict={}
 
         #Add input layer to combiner model config
-        self.combiner_layers.insert(0,lstm_hidden_size * len(self.lstm_keys) + self.disc_layers[-1] + self.indicator_layers[-1])
+        self.combiner_layers.insert(0,lstm_hidden_size * len(self.cont_keys) + self.disc_layers[-1] + self.indicator_layers[-1])
 
         #Add output layer to conbiner config
         self.combiner_layers.append(features_dim)
