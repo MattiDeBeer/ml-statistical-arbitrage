@@ -89,6 +89,9 @@ class RlTradingEnvSin(BinanceTradingEnv,gymnasium.Env):
         """
         
         #calculate reward using log returns
+        if current_value == 0:
+            current_value = 1e-6
+            
         reward = np.log(current_value / previous_value)
         
         #ensure reward cannot be too large
