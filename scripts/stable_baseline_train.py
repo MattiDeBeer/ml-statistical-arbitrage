@@ -159,23 +159,51 @@ Model.force_pretrain_qnet(dataset_size=10000,steps=1000,verbose_freq = 100)
 while Model.pretrain_eval_episode(30) <= 0:
     Model.pre_train(200,eval_frequency=10,eval_steps=5)
 
-average = Model.pretrain_eval_episode(30)
+print('\n')
+average = Model.pretrain_eval_episode(30)[0]
 print(f"Model Pretraining complete with an average reward of {average}")
+print('\n')
 
-while Model.eval_episode(30,algo=True)[1] <= 0:
-    Model.train_algo(200,eval_frequency=100,eval_steps=5)
+training_change = -1
+initial_value = 0.5
+exploration_fraction = 0.8
 
-average = Model.eval_episode(30,algo=True)
-print(f"Model Algo training complete with an average reward of {average}")
+while Model.eval_episode(30,algo=True)[1] <= 0.1:
+    Model.train_algo(200,eval_frequency=100,eval_steps=5,initial_value=initial_value,exploration_fraction=exploration_fraction)
+    training_change =  Model.eval_episode(30)[0]
+    if training_change == 0:
+        print('\nIt was detected that the model is stuck, establishing greedy exploration \n')
+        initial_value = 1
+        exploration_fraction = 0
+    else:
+        initial_value = 0.5
+        exploration_fraction = 0.5
 
-while Model.eval_episode(30)[0] <= 0:
-    Model.train(200,eval_frequency=100,eval_steps=5)
+print('\n')
+average = Model.eval_episode(30,algo=True)[1]
+print(f"Model Algo training complete with an average gain of {average}%")
+print('\n')
 
+training_change = -1
+initial_value = 0.5
+exploration_fraction = 0.8
+
+while training_change <= 0.1:
+    Model.train(200,eval_frequency=100,eval_steps=5,initial_value=initial_value,exploration_fraction=exploration_fraction)
+    training_change =  Model.eval_episode(30)[0]
+    if training_change == 0:
+        print('\nIt was detected that the model is stuck, establishing greedy exploration \n')
+        initial_value = 1
+        exploration_fraction = 0
+    else:
+        initial_value = 0.5
+        exploration_fraction = 0.5
+
+print('\n')
 average = Model.eval_episode(30)
-print(f"Model Training omplete with an average reward of {average}")
+print(f"Model Training complete with an average gain of {average}")
+print('\n')
 
 Model.save(pairs_config['run_id']+'_final')
-#Model.save("test")
-#
 
 ### #############################################################
