@@ -18,7 +18,7 @@ keys.txt
 #tensorboard verbosing
 dqn_tensorboard/
 tensorboard_log/
-
+tensorboard_logs/
 
 #datasets
 data/
