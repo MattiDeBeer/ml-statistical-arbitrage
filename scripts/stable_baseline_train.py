@@ -162,19 +162,19 @@ while Model.pretrain_eval_episode(30) <= 0:
 average = Model.pretrain_eval_episode(30)
 print(f"Model Pretraining complete with an average reward of {average}")
 
-while Model.eval_episode(30,algo=True) <= 0:
+while Model.eval_episode(30,algo=True)[1] <= 0:
     Model.train_algo(200,eval_frequency=100,eval_steps=5)
 
 average = Model.eval_episode(30,algo=True)
-print(f"Model Pretraining complete with an average reward of {average}")
+print(f"Model Algo training complete with an average reward of {average}")
 
-while Model.eval_episode(30,algo=True) <= 0:
+while Model.eval_episode(30)[0] <= 0:
     Model.train(200,eval_frequency=100,eval_steps=5)
 
-average = Model.eval_episode(30,algo=True)
-print(f"Model Pretraining complete with an average reward of {average}")
+average = Model.eval_episode(30)
+print(f"Model Training omplete with an average reward of {average}")
 
-Model.save(pairs_config['run_id_final'])
+Model.save(pairs_config['run_id']+'_final')
 #Model.save("test")
 #
 

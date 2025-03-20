@@ -691,7 +691,7 @@ class PairsDqnModel:
         print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward}")
         print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
 
-        return avg_reward
+        return avg_reward, avg_percentage_change
 
     def plot_episode(self,excluded_keys = [], action_num = 1):
         if action_num == 1:
