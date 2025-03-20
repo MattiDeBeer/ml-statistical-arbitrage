@@ -17,6 +17,9 @@ from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 from collections import deque
 import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 class EpisodeRewardLoggerCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -481,34 +484,117 @@ class PairsDqnModel:
                 sys.exit()
 
 
-    def train(self,episode_num,eval_frequency = 5, eval_steps=5):
+    def force_pretrain_qnet(self,dataset_size = 1000, steps = 1000, verbose_freq = 10):
+
+        assert not self.pretrain_env_class is None, "You are performing training on the pretrainer, but have not passed a pretraining class through the flag pretrain_env"
+
+        q_net = self.model.q_net
+        pretrain_env = self.pretrain_env
+
+        dataset = {}
+        for key in pretrain_env.observation_space.keys():
+            dataset[key] = []
+
+        rewards = []
+        for i in tqdm( range(0,dataset_size), desc = 'Generating Data', unit = ' datapoint', leave=False):
+            reward_vector = [0,0]
+            action = np.random.randint(2)
+            state, reward, _, _, _ = pretrain_env.step(action)
+            for key in dataset:
+                dataset[key].append(state[key])
+
+            reward_vector[action] = reward
+            rewards.append(reward_vector)
+
+        dataset = {key : torch.tensor(value) for key, value in dataset.items()}
+        rewards = torch.tensor(rewards)
+
+        criterion = nn.MSELoss()  # Mean Squared Error Loss (for regression)
+        optimizer = optim.Adam(q_net.parameters(), lr=0.001)
+
+        # Training step
+        def train_step(batch, label,model):
+            model.train()  # Set the model to training mode
+
+            optimizer.zero_grad()  # Zero the gradients to prevent accumulation
+
+            # Forward pass: Get the model prediction (inference)
+            inference = model(batch)  # (32, 1)
+
+            # Compute the loss
+            loss = criterion(inference, label)  # Compare prediction with label
+
+            # Backward pass: Compute gradients
+            loss.backward()
+
+            # Update parameters
+            optimizer.step()
+
+            return loss.item()  # Return the loss value for monitoring
+
+        # Call the training step for this batch
+        for i in tqdm( range(0,steps), desc = 'Training', unit = ' steps', leave=False):
+            loss_value = train_step(dataset, rewards, q_net)
+            if i % verbose_freq == 0:
+                print(f"Training Loss: {loss_value}")
+
+    def schedule_epsilon(self,timestep, total_timesteps, exploration_fraction, initial_value=1.0, final_value=0.05):
+        """
+        Calculate epsilon value for a given timestep using a linear schedule.
+
+        Args:
+            timestep: Current timestep
+            total_timesteps: Total number of timesteps
+            exploration_fraction: Fraction of total timesteps used for exploration
+            initial_value: Initial epsilon value to start from (default 1.0)
+            final_value: Final epsilon value to decay to (default 0.05)
+
+        Returns:
+            Current epsilon value between initial_value and final_value
+        """
+        # Calculate the stopping point for exploration decay
+        exploration_steps = int(total_timesteps * exploration_fraction)
+        
+        # If beyond exploration steps, return final epsilon
+        if timestep > exploration_steps:
+            return final_value
+        
+        # Calculate linear decay from initial to final value
+        epsilon = initial_value - (initial_value - final_value) * (timestep / exploration_steps)
+        return epsilon
+
+    def train(self,episode_num,eval_frequency = 5, eval_steps=5,  exploration_fraction = 0.5, initial_value = 0.5, final_value = 0.05):
         self.model.set_env(self.enviroment_dv)
         callbacks = [EpisodeRewardLoggerCallback()]
         for i in tqdm( range (0,episode_num), desc='Training Model', unit ='Episode' ):
+            self.model.epsilon = self.schedule_epsilon(i,episode_num,exploration_fraction = exploration_fraction, initial_value=initial_value, final_value = final_value)
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
+                print(f"Epsilon: {self.model.epsilon}")
                 self.eval_episode(eval_steps)
-                self.save(f"episode_{i}")
 
-    def train_algo(self,episode_num,eval_frequency = 5, eval_steps=5):
+    def train_algo(self,episode_num,eval_frequency = 5, eval_steps=5, exploration_fraction = 0.5, initial_value = 0.5, final_value = 0.05):
         assert not self.algo_env_class is None, "You are performing training on the algo dataset, but have not passed an algo training through the flag algo_env"
         callbacks = [EpisodeRewardLoggerCallback()]
         self.model.set_env(self.algo_env_dv)
         for i in tqdm( range (0,episode_num), desc='Algo-training Model', unit ='Episode' ):
+            self.model.epsilon = self.schedule_epsilon(i,episode_num,exploration_fraction = exploration_fraction, initial_value=initial_value, final_value = final_value)
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
+                print(f"Epsilon: {self.model.epsilon}")
                 self.eval_episode(eval_steps,algo=True)
 
-    def pre_train(self,episode_num,eval_frequency = 5, eval_steps=5):
+                
+    def pre_train(self,episode_num,eval_frequency = 5, eval_steps=5,  exploration_fraction = 0.5, initial_value = 0.5, final_value = 0.05):
         assert not self.pretrain_env_class is None, "You are performing training on the pretrainer, but have not passed a pretraining class through the flag pretrain_env"
         self.model.set_env(self.pretrain_env_dv)
         for i in tqdm( range (0,episode_num), desc='Pre-training Model', unit ='Episode' ):
+            self.model.epsilon = self.schedule_epsilon(i,episode_num,exploration_fraction = exploration_fraction, initial_value=initial_value, final_value = final_value)
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False)
             if i % eval_frequency == 0:
                 self.pretrain_eval_episode(eval_steps)
         
     def save(self, file_name):
-        # Save the model
         self.model.save(f"{self.model_save_location}{file_name}")
 
     def _generate_keyset(self,timeseries_keys,discrete_keys,indicator_keys,token_pair,excluded_keys = []):
@@ -563,7 +649,6 @@ class PairsDqnModel:
         print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
         if verbose:
             print("".join(map(str,actions)))
-
         
         return avg_reward
     
@@ -583,12 +668,14 @@ class PairsDqnModel:
             start_cash = enviroment.money
             total_reward = 0
             done = False
+            actions = []
 
             # Run a single episode
             while not done:
                 action, _state = self.model.predict(obs, deterministic=True)
                 obs, reward, done, truncated, info  = enviroment.step(action)
                 total_reward += reward
+                actions.append(action)
 
                 self.enviroment.close_all_positions()
                 end_cash = enviroment.money
@@ -601,8 +688,10 @@ class PairsDqnModel:
         avg_reward = np.mean(total_rewards)
         avg_percentage_change = np.mean(percentage_changes)
 
-        print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
-        print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change}%")
+        print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward}")
+        print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
+
+        return avg_reward
 
     def plot_episode(self,excluded_keys = [], action_num = 1):
         if action_num == 1:
