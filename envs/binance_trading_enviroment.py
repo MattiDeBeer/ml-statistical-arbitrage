@@ -5,6 +5,7 @@ from jax.scipy.stats import norm
 import cupy as cp
 from cupy.linalg import lstsq
 from statsmodels.tsa.stattools import adfuller, coint
+import statsmodels.api as sm
 
 class BinanceTradingEnv: 
    
@@ -207,7 +208,6 @@ class BinanceTradingEnv:
             # Iterate through the tokens in the file
             for token in list(f.keys()):
                 token_klines = {}
-                ### ADD CHECK TO ENSURE ALL TIMESERIES HAVE THE SAME LENGTH ###
                 for timeseries_key in list(f[token].keys()):
                     token_klines[timeseries_key] = f[token][timeseries_key][:]
                     if 'dataset_length' not in self.__dict__:
@@ -228,6 +228,90 @@ class BinanceTradingEnv:
         Returns:
         dict: If return_data is True, returns a dictionary containing the generated episode data.
         """
+
+        assert self.dataset_length > length, f"The dataset is of length {self.dataset_length}, but you have requested and episode of length {length}"
+
+        # If the episode klines attribute does not exist, create it
+        if not hasattr(self,'klines'):
+            self.klines = {}
+            
+        # If the tokens input is a string
+        if isinstance(tokens,str):
+            token = tokens
+
+            # Check if the token exists in the dataset
+            assert token in self.dataset_klines.keys(), "Token {token} does not exist in the dataset"
+            klines = {}
+
+            # Set a random start point in the dataset
+            start = np.random.randint(0,self.dataset_length - length - 1)
+
+            # Generate an eposide for all the timeseries in the token
+            for key in self.dataset_klines[token]:
+                klines[key] = self.dataset_klines[token][key][start:start+length]
+                self.max_time = klines[key].shape[0]
+            
+            # Add the generated episode to the episode klines attribute
+            self.klines[token] = klines
+
+            # If return_data is True, return the generated episode data
+            if return_data:
+                return self.klines
+        
+        # If the tokens input is a list or tuple, iterate through the tokens
+        elif isinstance(tokens,(list,tuple)):
+
+            # Set a random start point in the dataset
+            start = np.random.randint(0,self.dataset_length - length - 1)
+
+            # Iterate through the tokens
+            for token in tokens:
+
+                # Check if the token exists in the dataset
+                assert token in self.dataset_klines.keys(), "Token {token} does not exist in the dataset"
+                klines = {}
+
+                # Generate an eposide for all the timeseries in the token
+                for key in self.dataset_klines[token]:
+
+                    # Add the generated episode to the episode klines attribute
+                    klines[key] = self.dataset_klines[token][key][start:start+length]
+
+                    # Set the maximum time to the length of the episode
+                    self.max_time = klines[key].shape[0]
+                # Add the generated episode to the episode klines attribute
+                self.klines[token] = klines
+
+            self.episode_cache = {}
+            for i in range(len(tokens)):
+                for j in range(i + 1, len(tokens)):
+                    pair = f"{tokens[i]}-{tokens[j]}"
+                    if pair in self.dataset_klines:
+                        self.episode_cache[pair] = {}
+                        for key in self.dataset_klines[pair]:
+                            self.episode_cache[pair][key] = self.dataset_klines[pair][key]
+
+            # If return_data is True, return the generated episode data
+            if return_data:
+                return self.klines
+            
+        # If the tokens input is not a string, list, or tuple, raise an error
+        else:
+            raise ValueError("input {tokens} is neither a string, tuple or array")
+        
+    def get_algo_token_episode(self,tokens,length,return_data = False, dir = 'algo-data/'):
+        """
+        Generates an episode of token data for the specified tokens and length.
+        Parameters:
+        tokens (str, list, tuple): The tokens to generate the episode for.
+        length (int): The length of the episode.
+        return_data (bool, optional): If True, returns the generated episode data. Default is False.
+        Returns:
+        dict: If return_data is True, returns a dictionary containing the generated episode data.
+        """
+        filename = dir+f"processed_episode_{np.random.randint(0,100)}.h5"
+
+        self.load_token_dataset(filename=filename)
 
         assert self.dataset_length > length, f"The dataset is of length {self.dataset_length}, but you have requested and episode of length {length}"
 
@@ -362,16 +446,18 @@ class BinanceTradingEnv:
             # If the symbols input is not a string, list, or tuple, raise an error
             raise ValueError("The passed input {symbols} is neither a string, tuple or list")
         
-    def calc_hedge_ratio(self,timeseries1,timeseries2):
-        """
-        Calculates the hedge ratio between two timeseries.
-        Parameters:
-        timeseries1 (array): The first timeseries.
-        timeseries2 (array): The second timeseries.
-        Returns:
-        float: The hedge ratio between the two timeseries.
-        """
-        return np.mean(timeseries1) / np.mean(timeseries2)
+    def calc_hedge_ratio(self,ts1,ts2):
+
+        # Add a constant to the independent variable (ts2) for OLS regression
+        ts2 = sm.add_constant(ts2)
+
+        # Fit OLS regression: ts1 = beta * ts2 + error
+        model = sm.OLS(ts1, ts2).fit()
+
+        # Hedge ratio is the slope (beta coefficient)
+        hedge_ratio = model.params[1]
+
+        return hedge_ratio                
     
     def get_z_scores(self,token1,token2,length):
         """
