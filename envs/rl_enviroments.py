@@ -4,6 +4,8 @@ import gymnasium
 from gymnasium import spaces
 import numpy as np
 from envs.binance_trading_enviroment import BinanceTradingEnv
+from collections import deque
+
 
 class MeanRevertingProcess:
     def __init__(self, mu=0, theta=0.1, sigma=0.1, x0=None, dt=1.0):
@@ -555,7 +557,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         #call reset function
         self.state, _ = self.reset()
     
-    def reward_function(self, current_value, previous_value):
+    def reward_function(self, current_value, previous_value, action,was_bought):
         """
         Calculate the reward for the current step
         params:
@@ -571,9 +573,9 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         if reward > 100:
             reward = 100
         elif reward < -100:
-            reward = 100
-        
-        return reward
+            reward = 10
+
+        return 1000 * reward
 
     def generate_observation(self,action):
         """
@@ -674,6 +676,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         info: dict - Additional information
         """
 
+        was_bought = self.is_bought
         self.previous_value = self.get_current_portfolio_value()
         
         # Apply action
@@ -697,7 +700,7 @@ class RlTradingEnvPairs(BinanceTradingEnv,gymnasium.Env):
         
         #calculate reward
         self.current_value = self.get_current_portfolio_value()
-        reward = self.reward_function(self.current_value,self.previous_value)
+        reward = self.reward_function(self.current_value,self.previous_value,action,was_bought)
         
         #generate next observation
         self.state = self.generate_observation(action)
@@ -852,10 +855,7 @@ class RlTradingEnvPairsExtendedActions(BinanceTradingEnv,gymnasium.Env):
             reward = 100
         elif reward < -100:
             reward = 100
-        
-        if self.money <= 0:
-            reward -= 10
-        
+    
         return reward
 
     def generate_observation(self,action):
@@ -987,7 +987,7 @@ class RlTradingEnvPairsExtendedActions(BinanceTradingEnv,gymnasium.Env):
         
         #calculate reward
         self.current_value = self.get_current_portfolio_value()
-        reward = self.reward_function(self.current_value,self.previous_value)
+        reward = self.reward_function(self.current_value,self.previous_value,was_bought)
         
         #generate next observation
         self.state = self.generate_observation(action)
@@ -1302,6 +1302,8 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
         #if the z_score it present, add it to the observation space
         if 'z_score' in self.timeseries_obs.keys():
             self.observation_space['z_score'] = spaces.Box(low = self.timeseries_obs['z_score'][1], high= self.timeseries_obs['z_score'][2], shape= (self.timeseries_obs['z_score'][0],))
+            self.z_score_len = self.timeseries_obs['z_score'][0]
+            self.z_score_buffer = deque(maxlen=self.z_score_len)
 
         #populate the discrete keys
         for key in self.discrerete_obs.keys():
@@ -1325,14 +1327,14 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
         """
         # Create dictionary for state
 
-        z_score = self.state.get('z_score',None)
+        z_score = np.mean(self.state.get('z_score',None))
         adfuller1 = self.state.get(self.token_pair[0]+"_adfuller",None)
         adfuller2 = self.state.get(self.token_pair[1]+"_adfuller",None)
         coint_p_value = self.state.get('coint_p_value',None)
+        is_bought = self.state.get('is_bought',None)
 
         low_bound = -2
         high_bound = 0
-        is_bought = self.is_bought
         reward = 0
 
         if action == 1:  # Buy or Sell decision
@@ -1374,6 +1376,8 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
         """
         state = {}
         
+        self.z_score_buffer.append(self.process.step())
+
         #populate the timeseries information for all tokens
         for token in self.token_pair:
             for key in self.timeseries_obs.keys():
@@ -1382,15 +1386,16 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
 
         #populate the cointegreation p calue once
         if 'coint_p_value' in self.indicator_obs.keys():
-            state['coint_p_value'] = np.array([np.random.randint(2)])
+            state['coint_p_value'] = np.array([np.random.uniform(0,1)])
 
         #populate the historical z scores once
         if 'z_score' in self.timeseries_obs.keys():
-            state['z_score'] = np.random.randn(self.timeseries_obs['z_score'][0])
+            state['z_score'] = np.array(list(self.z_score_buffer))
 
         #populate the z score
         if 'z_score' in self.indicator_obs.keys():
             state['z_score'] = np.array([self.process.step()])
+            
 
         #populate the adfuller metrics once
         if 'adfuller' in self.indicator_obs.keys():
@@ -1424,8 +1429,12 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
         self.amount_bought = 0
         self.previous_action = 0
         
+        if 'z_score' in self.timeseries_obs.keys():
+            for i in range (0,self.z_score_len):
+                self.z_score_buffer.append(self.process.step())
+
+
         self.step_num = 0
-        
         #generate initial observation
         self.state = self.generate_observation(0)
 
@@ -1449,7 +1458,7 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
             if self.is_bought == 1:
                 self.is_bought = 0
             elif self.is_bought == 0:
-                self.is_bought == 1
+                self.is_bought = 1
 
         self.step_num+=1
     
