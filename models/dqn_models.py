@@ -302,6 +302,8 @@ class PairsDqnModel:
         q_net_layers = config.get("q_net_layers", [])
         verbose_level = config.get('verbose_level', 1)
         self.log = config.get('log', False)
+        self.algo_env_class = config.get('algo_env', None)
+        self.pretrain_env_class = config.get('pretrain_env', None)
 
         #save configs
         run_id = config.get("run_id", "0000")
@@ -359,6 +361,57 @@ class PairsDqnModel:
                                         dataset_file = test_dataset
 
         )
+
+        if not self.algo_env_class is None:
+            self.algo_env = self.algo_env_class(episode_length=self.episode_length,
+                                            indicator_obs = indicator_observation_space,
+                                            timeseries_obs = timeseries_observation_space,
+                                            discrete_obs = discrete_observation_space,
+                                            verbose = verbose,
+                                            transaction_precentage = transaction_precentage,
+                                            token_pair = token_pair,
+                                            z_score_context_length = z_score_context_length,
+                                            coint_context_length = coint_context_length,
+                                            GPU_available = GPU_AVAILABLE,
+                                            dataset_file = test_dataset,
+                                            use_algo = True
+
+            )
+
+            self.algo_env_dv = DummyVecEnv([lambda: self.algo_env_class(
+                    episode_length=self.episode_length,
+                    indicator_obs = indicator_observation_space,
+                    timeseries_obs = timeseries_observation_space,
+                    discrete_obs = discrete_observation_space,
+                    verbose = verbose,
+                    transaction_precentage = transaction_precentage,
+                    token_pair = token_pair,
+                    z_score_context_length = z_score_context_length,
+                    coint_context_length = coint_context_length,
+                    GPU_available = GPU_AVAILABLE,
+                    dataset_file = dataset_file,
+                    use_algo = True
+            )])
+
+        if not self.pretrain_env_class is None:
+
+            self.pretrain_env = self.pretrain_env_class(
+                        episode_length=self.episode_length,
+                        indicator_obs = indicator_observation_space,
+                        timeseries_obs = timeseries_observation_space,
+                        discrete_obs = discrete_observation_space,
+                        token_pair = token_pair,
+
+                )
+            
+            self.pretrain_env_dv = DummyVecEnv([lambda: self.pretrain_env_class(
+                        episode_length=self.episode_length,
+                        indicator_obs = indicator_observation_space,
+                        timeseries_obs = timeseries_observation_space,
+                        discrete_obs = discrete_observation_space,
+                        token_pair = token_pair,
+
+                )])
 
 
 
@@ -429,7 +482,7 @@ class PairsDqnModel:
 
 
     def train(self,episode_num,eval_frequency = 5, eval_steps=5):
-        train_steps = episode_num * self.episode_length
+        self.model.set_env(self.enviroment_dv)
         callbacks = [EpisodeRewardLoggerCallback()]
         for i in tqdm( range (0,episode_num), desc='Training Model', unit ='Episode' ):
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
@@ -437,6 +490,22 @@ class PairsDqnModel:
                 self.eval_episode(eval_steps)
                 self.save(f"episode_{i}")
 
+    def train_algo(self,episode_num,eval_frequency = 5, eval_steps=5):
+        assert not self.algo_env_class is None, "You are performing training on the algo dataset, but have not passed an algo training through the flag algo_env"
+        callbacks = [EpisodeRewardLoggerCallback()]
+        self.model.set_env(self.algo_env_dv)
+        for i in tqdm( range (0,episode_num), desc='Algo-training Model', unit ='Episode' ):
+            self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
+            if i % eval_frequency == 0:
+                self.eval_episode(eval_steps,algo=True)
+
+    def pre_train(self,episode_num,eval_frequency = 5, eval_steps=5):
+        assert not self.pretrain_env_class is None, "You are performing training on the pretrainer, but have not passed a pretraining class through the flag pretrain_env"
+        self.model.set_env(self.pretrain_env_dv)
+        for i in tqdm( range (0,episode_num), desc='Pre-training Model', unit ='Episode' ):
+            self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False)
+            if i % eval_frequency == 0:
+                self.pretrain_eval_episode(eval_steps)
         
     def save(self, file_name):
         # Save the model
@@ -468,16 +537,50 @@ class PairsDqnModel:
 
         return lstm_keys, discrete_keys, indicator_keys
     
-    def eval_episode(self,num_episodes):
+    def pretrain_eval_episode(self,num_episodes,verbose = False):
+        total_rewards = []
+
+        for _ in range(num_episodes):
+            actions = []
+            done = False
+            enviroment = self.pretrain_env
+            obs, _ = enviroment.reset()
+            total_reward = 0
+            done = False
+
+            # Run a single episode
+            while not done:
+                action, _state = self.model.predict(obs, deterministic=True)
+                obs, reward, done, truncated, info  = enviroment.step(action)
+                total_reward += reward
+                actions.append(action)
+
+
+                total_rewards.append(total_reward)
+
+        avg_reward = np.mean(total_rewards)
+
+        print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
+        if verbose:
+            print("".join(map(str,actions)))
+
+        
+        return avg_reward
+    
+    def eval_episode(self,num_episodes,algo=False):
         total_rewards = []
         percentage_changes = []
 
         for _ in range(num_episodes):
             done = False
-            actions = []
-            enviroment = self.enviroment
+
+            if algo:
+                enviroment = self.algo_env
+            else:
+                enviroment = self.enviroment
+    
             obs, _ = enviroment.reset()
-            start_cash = self.enviroment.money
+            start_cash = enviroment.money
             total_reward = 0
             done = False
 
@@ -488,9 +591,10 @@ class PairsDqnModel:
                 total_reward += reward
 
                 self.enviroment.close_all_positions()
-                end_cash = self.enviroment.money
+                end_cash = enviroment.money
 
                 percentage_change = ((end_cash - start_cash) / start_cash) * 100
+
                 total_rewards.append(total_reward)
                 percentage_changes.append(percentage_change)
 
@@ -498,7 +602,7 @@ class PairsDqnModel:
         avg_percentage_change = np.mean(percentage_changes)
 
         print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward:.5f}")
-        print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
+        print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change}%")
 
     def plot_episode(self,excluded_keys = [], action_num = 1):
         if action_num == 1:
@@ -506,6 +610,43 @@ class PairsDqnModel:
         elif action_num == 2:
             self.plot_episode_2_action(excluded_keys = excluded_keys)
 
+    def plot_pretrain_episode(self):
+
+        done = False
+        actions = []
+        enviroment = self.pretrain_env
+        obs, _ = enviroment.reset()
+        total_reward = 0
+        done = False
+        z_scores = []
+
+        # Run a single episode
+        while not done:
+            action, _state = self.model.predict(obs, deterministic=True)
+            z_scores.append(obs['z_score'][0])
+            actions.append(action)
+            obs, reward, done, truncated, info  = enviroment.step(action)
+            total_reward += reward
+
+        is_buy = True
+        buy_indices = []
+        sell_indices = []
+        for i in range(len(actions)):
+            if actions[i] == 1:
+                if is_buy:
+                    buy_indices.append(i)  #Long on arb
+                else:
+                    sell_indices.append(i)  #Exit Erb
+                is_buy = not is_buy  
+        
+        
+        plt.plot(z_scores)  # Line plot
+        plt.scatter(buy_indices, [z_scores[i] for i in  buy_indices], marker='^', color='green', label="Buy arb", s=100, zorder=5)
+        plt.scatter(sell_indices, [z_scores[i] for i in sell_indices] , marker='v', color='red', label="Exit arb", s=100, zorder=5)
+        plt.grid(True)
+            
+        print(f"Total reward for this episode: {total_reward}")
+        plt.show()
         
     def plot_episode_1_action(self,excluded_keys = []):
         
