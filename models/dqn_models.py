@@ -506,8 +506,10 @@ class PairsDqnModel:
             reward_vector[action] = reward
             rewards.append(reward_vector)
 
-        dataset = {key : torch.tensor(value) for key, value in dataset.items()}
-        rewards = torch.tensor(rewards)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        dataset = {key : torch.tensor(value).to(device) for key, value in dataset.items()}
+        rewards = torch.tensor(rewards).to(device)
 
         criterion = nn.MSELoss()  # Mean Squared Error Loss (for regression)
         optimizer = optim.Adam(q_net.parameters(), lr=0.001)
