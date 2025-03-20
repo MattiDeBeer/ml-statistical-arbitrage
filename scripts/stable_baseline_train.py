@@ -2,7 +2,7 @@
 
 from models.dqn_models import DqnModel, PairsDqnModel
 from models.feature_extractors import SingleTokenFeatureExtractor, PairsFeatureExtractor
-from envs.rl_enviroments import RlTradingEnvToken, RlTradingEnvSin, RlTradingEnvPairs, RlTradingEnvPairsExtendedActions
+from envs.rl_enviroments import RlTradingEnvToken, RlTradingEnvSin, RlTradingEnvPairs, RlTradingEnvPairsExtendedActions, RlPretrainEnvSingleAction
 import numpy as np
 
 
@@ -46,10 +46,10 @@ pairs_config = {
 
     ### Enviroment Config ###
     "enviromentClass": RlTradingEnvPairs,
-    "episode_length": 500,
-    "timeseries_obs" : {'z_score' : (10,-np.inf,np.inf),'volume' : (10,-np.inf,np.inf)},
+    "episode_length": 800,
+    "timeseries_obs" : {},
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 2},
-    "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1)},
+    "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1), 'z_score' : (-np.inf,np.inf)},
     "verbose" : False,
     "transaction_percentage" : 0,
     "token_pair" : ("BTCUSDT","ETHUSDT"),
@@ -58,6 +58,7 @@ pairs_config = {
     "log" : True,
     "dataset_file": "data/processed_dataset_5000_1h_train.h5",
     "test_dataset": "data/processed_dataset_5000_1h_test.h5",
+    "pretrain_env" : RlPretrainEnvSingleAction,
     
     ### Feature Extractor Config ###
     "feature_extractor_class" : PairsFeatureExtractor,
@@ -78,10 +79,10 @@ pairs_config = {
     "target_update_interval": 500,
     "exploration_initial_eps": 1.0,
     "exploration_final_eps": 0.05,
-    "exploration_fraction": 0.5,
-    "q_net_layers" : [32,32],
+    "exploration_fraction": 0.7,
+    "q_net_layers" : [64,64],
     "verbose_level" : 0,
-    "tensorboard_log_file" : "./dqn_tensorboard",
+    "tensorboard_log_file" : "tensorboard_log",
     "model_save_folder" : "saved_models"
 }
 
@@ -92,9 +93,9 @@ pairs_config_extended_actions = {
     ### Enviroment Config ###
     "enviromentClass": RlTradingEnvPairsExtendedActions,
     "episode_length": 500,
-    "timeseries_obs" : {'z_score' : (10, -np.inf, np.inf)},
+    "timeseries_obs" : {},
     "discrete_obs" : {'is_bought' : 2, 'previous_action' : 3},
-    "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1), 'amount_bought': (0,np.inf)},
+    "indicator_obs" : {'adfuller' : (0,1), 'coint_p_value' : (0,1), 'amount_bought': (0,np.inf), 'z_score': (-np.inf,np.inf)},
     "verbose" : False,
     "transaction_percentage" : 0,
     "token_pair" : ("BTCUSDT","ETHUSDT"),
@@ -103,6 +104,8 @@ pairs_config_extended_actions = {
     "log" : True,
     "dataset_file": "data/processed_dataset_5000_1h_train.h5",
     "test_dataset": "data/processed_dataset_5000_1h_test.h5",
+    "algo_env" : RlTradingEnvPairsExtendedActions,
+    "pretrain_env" : RlTradingEnvPairsExtendedActions,
     
     ### Feature Extractor Config ###
     "feature_extractor_class" : PairsFeatureExtractor,
@@ -123,10 +126,10 @@ pairs_config_extended_actions = {
     "target_update_interval": 500,
     "exploration_initial_eps": 1.0,
     "exploration_final_eps": 0.05,
-    "exploration_fraction": 0.5,
+    "exploration_fraction": 0.8,
     "q_net_layers" : [32,32],
     "verbose_level" : 0,
-    "tensorboard_log_file" : "./dqn_tensorboard",
+    "tensorboard_log_file" : "./tensorboard_log",
     "model_save_folder" : "saved_models"
 }
 
@@ -138,7 +141,7 @@ pairs_config_extended_actions = {
 
 #################################################################
 
-### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###
+### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING ###y
 
 #Model = PairsDqnModel(pairs_config)
 #Model.train(1,eval_frequency=5,eval_steps=5)
@@ -150,9 +153,16 @@ pairs_config_extended_actions = {
 
 ### THIS TRAINS AND PLOTS AN EPISODE FOR PAIRS TRADING WITH EXTENDED ACTIONS ###
 
-Model = PairsDqnModel(pairs_config_extended_actions)
-Model.train(1,eval_frequency=5,eval_steps=5)
-Model.plot_episode(action_num=2)
+Model = PairsDqnModel(pairs_config)
+Model.pre_train(2000,eval_frequency=10,eval_steps=5)
+Model.plot_pretrain_episode()
+#Model.pretrain_eval_episode(10,verbose=True)
+#Model.train(10)
+    
+
+#Model.train_algo(1000,eval_frequency=10,eval_steps=5)
+#Model.train(1000,eval_frequency=10,eval_steps=5)
+#Model.plot_episode(action_num=2)
 #Model.save("test")
 #
 
