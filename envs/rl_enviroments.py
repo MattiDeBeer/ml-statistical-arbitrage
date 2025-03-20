@@ -1358,7 +1358,7 @@ class RlPretrainEnvSingleAction(gymnasium.Env):
             else:
                 reward -= 0.2  # Slight penalty for indecision
 
-        return reward
+        return reward / 100
 
 
     def generate_observation(self,action):
