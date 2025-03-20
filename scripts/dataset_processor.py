@@ -7,6 +7,7 @@ from jax.scipy.stats import norm
 import cupy as cp
 from cupy.linalg import lstsq
 import shutil
+import statsmodels.api as sm
 
 
 
@@ -46,7 +47,7 @@ def split_datasets(filename, train_ratio=0.7, val_ratio=0.15):
          
         tokens = list(hf_in.keys())  # e.g., ['BTCUSDT', 'ETHUSDT']
         
-        for token in tqdm(tokens, desc="Splitting dataset", unit="token"):
+        for token in tqdm(tokens, desc="Splitting dataset", unit="token", leave=False):
             group_in = hf_in[token]
             group_train = hf_train.create_group(token)
             group_val   = hf_val.create_group(token)
@@ -148,12 +149,29 @@ def numpy_cointegration_test(y1, y2):
     
     return p_value            
 
-def calc_hedge_ratio(timeseries1, timeseries2):
-    return np.mean(timeseries1) / np.mean(timeseries2)                          
+def calc_hedge_ratio(ts1, ts2):
+    """
+    Calculate the hedge ratio using OLS regression.
+    
+    :param ts1: numpy array or list, time series of asset 1 (dependent variable)
+    :param ts2: numpy array or list, time series of asset 2 (independent variable)
+    :return: hedge ratio (float)
+    """
+
+    # Add a constant to the independent variable (ts2) for OLS regression
+    ts2 = sm.add_constant(ts2)
+
+    # Fit OLS regression: ts1 = beta * ts2 + error
+    model = sm.OLS(ts1, ts2).fit()
+
+    # Hedge ratio is the slope (beta coefficient)
+    hedge_ratio = model.params[1]
+
+    return hedge_ratio                     
                         
 def calc_adfuller(timeseries, context_length,key):
     adf = []
-    for i in tqdm( range(context_length,len(timeseries)), desc=f"Calculating adf for {key}", unit = " datapoint"):
+    for i in tqdm( range(context_length,len(timeseries)), desc=f"Calculating adf for {key}", unit = " datapoint", leave=False):
         adf.append(jax_adf_test(timeseries[i-context_length:i]))
 
     return(np.array(adf))
@@ -162,7 +180,7 @@ def calculate_z_scores(timeseries1, timeseries2,key,context_length=10):
     z_scores = []
 
     assert len(timeseries2) == len(timeseries2), "Timeseries must have the same length"
-    for i in tqdm( range (context_length,len(timeseries2)), desc=f"calculating z scores for {key}", unit=" datapoint"):
+    for i in tqdm( range (context_length,len(timeseries2)), desc=f"calculating z scores for {key}", unit=" datapoint",leave=False):
         ts1 = timeseries1[i-context_length:i]
         ts2 = timeseries2[i-context_length:i]
         hedge_ratio = calc_hedge_ratio(ts1,ts2)
@@ -207,7 +225,7 @@ def calculate_and_append_coint_p_values(dataset_file, processed_dataset_file, pa
             timeseries2 = dataset_file[token2][key][:]
 
             coint_p_values = []
-            for i in tqdm(range(context_length, len(timeseries1)), desc=f"Calculating coint p-values for {pair}_{key}_{context_length}", unit=" datapoint"):
+            for i in tqdm(range(context_length, len(timeseries1)), desc=f"Calculating coint p-values for {pair}_{key}_{context_length}", unit=" datapoint", leave=False):
                 if GPU:
                     coint_p_value = cupy_cointegration_test(timeseries1[i-context_length:i], timeseries2[i-context_length:i])
                 else:
@@ -257,8 +275,8 @@ def normalise_timeseries_lengths(file):
 
 if __name__ == "__main__":
 
-    dataset_filename = "data/dataset_5000_1h.h5"
-    processed_dataset_filename = "data/processed_dataset_5000_1h.h5"
+    dataset_filename = "data/dataset_60000_1h.h5"
+    processed_dataset_filename = "data/processed_dataset_60000_1h.h5"
     
     # Delete processed file if it exists
     if os.path.exists(processed_dataset_filename):
