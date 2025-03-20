@@ -554,6 +554,10 @@ class PairsDqnModel:
         Returns:
             Current epsilon value between initial_value and final_value
         """
+
+        if exploration_fraction == 0:
+            return initial_value
+        
         # Calculate the stopping point for exploration decay
         exploration_steps = int(total_timesteps * exploration_fraction)
         
