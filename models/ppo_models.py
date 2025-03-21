@@ -274,14 +274,16 @@ class PairsPPOModel:
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
                 self.eval_episode(eval_steps)
+                self.save('dataset_PPO_{i}')
 
     def train_algo(self,episode_num,eval_frequency = 5, eval_steps=5):
         self.model.set_env(self.algo_env_dv)
         callbacks = [EpisodeRewardLoggerCallback()]
-        for i in tqdm( range (0,episode_num), desc='Training Model', unit ='Episode', leave=False):
+        for i in tqdm( range (0,episode_num), desc='Algo Training Model', unit ='Episode', leave=False):
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
                 self.eval_episode(eval_steps, algo=True)
+                self.save('algo_PPO_{i}')
 
 
     def mimic_statarb_trading(self, train_steps=200, gradient_steps=50, algo=False, batch_size=500,buffer_size = 1000):
@@ -460,3 +462,6 @@ class PairsPPOModel:
 
         plt.tight_layout()  # Adjust layout to avoid overlapping
         plt.show()
+
+    def save(self, file_name):
+        self.model.save(f"{self.model_save_location}{file_name}")
