@@ -68,11 +68,12 @@ class ExperienceDataset(Dataset):
     
     def __getitem__(self, idx):
         observation, action = self.experiences[idx]
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         for key in observation.keys():
-            observation[key] = torch.tensor(observation[key], dtype=torch.float32)
+            observation[key] = torch.tensor(observation[key], dtype=torch.float32).to(device)
 
-        return observation, torch.tensor(action, dtype=torch.float32)
+        return observation, torch.tensor(action, dtype=torch.float32).to(device)
 
 class PairsPPOModel:
 
@@ -143,7 +144,7 @@ class PairsPPOModel:
         self.discrete_keys = list(discrete_observation_space.keys())
 
         #set to GPU if available
-        device = "cuda" if is_available() else "cpu"
+        self.device = torch.device("cuda" if is_available() else "cpu")
         
         if verbose:
             print(" \nTraining enviroment \n ")
@@ -263,7 +264,7 @@ class PairsPPOModel:
             learning_rate=learning_rate,  # Learning rate for optimizer
             batch_size=self.batch_size,  # Batch size for training
             gamma=gamma,  # Discount factor for future rewards (used in Bellman equation
-            device=device,  # Which device to use (e.g., 'cpu' or 'cuda')
+            device=self.device,  # Which device to use (e.g., 'cpu' or 'cuda')
             tensorboard_log=tb_log  # Log directory for TensorBoard
         )
 
@@ -324,7 +325,7 @@ class PairsPPOModel:
             loss_accum = 0
 
             for obs, actions in dataLoader:
-             
+                
                 features = self.model.policy.features_extractor(obs)
                 logits = self.model.policy.mlp_extractor.policy_net(features)
                 action_logits = self.model.policy.action_net(logits)
