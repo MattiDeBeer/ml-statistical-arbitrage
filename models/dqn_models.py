@@ -878,6 +878,8 @@ class PairsDqnModel:
         return loss
 
     def inject_statarb_experiences(self,train_steps=20,gradient_steps=50,algo=False,batch_size=500):
+        
+        lambda_conts = 1e-5
 
         if algo:
             enviroment = self.algo_env
@@ -891,37 +893,77 @@ class PairsDqnModel:
             experience_genrator = StatarbExperienceGenerator(enviroment,self.token_pair)
             experiences = experience_genrator.generate_experiences(self.buffer_size)
 
-            for experience in experiences:
+            # Initialize counters for actions
+            action_counts = {0: 0, 1: 0}
+            added_experiences = 0
+            target_per_action = self.buffer_size // 2
 
-                obs, next_obs, action, reward, done, _ = experience
+            while added_experiences < self.buffer_size:
+                # Generate more experiences if needed
+                for experience in experiences:
+                    obs, next_obs, action, reward, done, _ = experience
+                    
+                    # Skip if we already have enough of this action
+                    if action_counts[action] >= target_per_action:
+                        continue
 
-                for key in obs.keys():
+                    # Format the observations
+                    for key in obs.keys():
+                        if isinstance(obs[key], int):
+                            obs[key] = np.array([obs[key]])
 
-                    if isinstance(obs[key],int):
-                        obs[key] = np.array([obs[key]])
+                    for key in next_obs.keys():
+                        if isinstance(next_obs[key], int):
+                            next_obs[key] = np.array([next_obs[key]])
 
-                for key in next_obs.keys():
+                    # Add to replay buffer
+                    self.model.replay_buffer.add(obs, next_obs, np.array([action]), reward, done, [{}])
+                    action_counts[action] += 1
+                    added_experiences += 1
 
-                    if isinstance(next_obs[key],int):
-                        next_obs[key] = np.array([obs[key]])
+                    # Check if buffer is balanced and full
+                    if added_experiences >= self.buffer_size:
+                        break
 
-                self.model.replay_buffer.add(obs, next_obs, np.array([action]), reward, done, [{}])
+                # If we need more experiences, generate them
+                if added_experiences < self.buffer_size:
+                    experiences = experience_genrator.generate_experiences(self.buffer_size)
 
-            for _ in range(gradient_steps):
-                replay_data = self.model.replay_buffer.sample(self.batch_size)
+            for j in range(gradient_steps):
+
+                replay_data = self.model.replay_buffer.sample(batch_size)
+
                 with torch.no_grad():
-                    target_q_values = self.model.q_net_target(replay_data.next_observations)
-                    target_q_values = target_q_values.max(dim=1)[0]
+                    # Compute target Q-values (max Q-value from target network)
+                    target_q_values = self.model.q_net_target(replay_data.next_observations).max(dim=1)[0].unsqueeze(1)
 
-                q_values = self.model.q_net(replay_data.observations).gather(1, replay_data.actions.long())
-            
-                loss = nn.functional.mse_loss(q_values,target_q_values)
+                    # Bellman update: target Q-value = reward + gamma * max(Q_target(s', a')) (if not done)
+                    target_q_values = replay_data.rewards + (1 - replay_data.dones.float()) * self.model.gamma * target_q_values
 
+        
+                # Compute current Q-values from policy network (only for selected actions)
+                q_values = self.model.q_net(replay_data.observations)
+                q_values = torch.gather(q_values,1,replay_data.actions)
+
+                #q_values = torch.gather(q_values, 1 , torch.argmax(rewards, 1)
+                l2_reg = 0
+                for param in self.model.q_net.parameters():
+                    l2_reg += torch.norm(param, 2) 
+
+                # Compute loss
+                loss = nn.functional.mse_loss(q_values, target_q_values) + lambda_conts * l2_reg
+
+                # Backpropagation step
                 self.model.policy.optimizer.zero_grad()
                 loss.backward()
                 self.model.policy.optimizer.step()
 
-                loss_value += loss.item()
+                loss_value += loss.item()  # Track loss for logging
+
+            if i * j % 500 == 0:
+                tau = 0.05
+                for target_param, param in zip(self.model.q_net_target.parameters(), self.model.q_net.parameters()):
+                    target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
             
             print(f"Train for buffer step: {loss_value}")  # Print loss
 
