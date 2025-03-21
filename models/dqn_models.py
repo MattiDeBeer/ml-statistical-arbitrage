@@ -20,6 +20,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from models.statarb_policy import StatarbExperienceGenerator
 
 class EpisodeRewardLoggerCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -294,9 +295,9 @@ class PairsDqnModel:
 
         ### DQN Model Parameters ###
         learning_rate = config.get("learning_rate", 1e-3)
-        buffer_size = config.get("buffer_size", 10000)
+        self.buffer_size = config.get("buffer_size", 10000)
         learning_starts = config.get("learning_starts", 500)
-        batch_size = config.get("batch_size", 32)
+        self.batch_size = config.get("batch_size", 32)
         gamma = config.get("gamma", 0.99)
         target_update_interval = config.get("target_update_interval", 500)
         exploration_initial_eps = config.get("exploration_initial_eps", 1.0)
@@ -444,9 +445,9 @@ class PairsDqnModel:
             policy_kwargs=policy_kwargs,
             verbose=verbose_level,
             learning_rate=learning_rate,
-            buffer_size=buffer_size,
+            buffer_size=self.buffer_size,
             learning_starts=learning_starts,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             gamma=gamma,
             target_update_interval=target_update_interval,
             exploration_initial_eps=exploration_initial_eps,  # Start with full exploration
@@ -857,3 +858,70 @@ class PairsDqnModel:
 
             plt.tight_layout()  # Adjust layout to avoid overlapping
             plt.show()
+
+    def biased_loss(self,q_values, target_q_values, actions, bias_weight=1.0):
+        # Gather Q-values for the chosen actions
+        q_values = q_values.gather(1, actions)  # Get Q-values for the taken actions
+
+        # Calculate the standard MSE loss
+        loss = torch.nn.functional.mse_loss(q_values, target_q_values)
+
+        # Create a mask for where the action is 1
+        bias_mask = (actions == 1).float()  # Mask where action is 1, with 1's where action is 1
+
+        # Calculate the difference (error) between the predicted Q-value and the target Q-value
+        error = (q_values - target_q_values).abs()
+
+        # Increase the loss specifically where action is 1, based on the error magnitude
+        loss += (bias_mask * error * bias_weight).mean()
+
+        return loss
+
+    def inject_statarb_experiences(self,train_steps=20,gradient_steps=50,algo=False,batch_size=500):
+
+        if algo:
+            enviroment = self.algo_env
+        else:
+            enviroment = self.enviroment
+            
+        for i in tqdm( range(0,train_steps),'Forcing training on statarb experiences', unit = ' buffer itteration'):
+
+            loss_value = 0
+
+            experience_genrator = StatarbExperienceGenerator(enviroment,self.token_pair)
+            experiences = experience_genrator.generate_experiences(self.buffer_size)
+
+            for experience in experiences:
+
+                obs, next_obs, action, reward, done, _ = experience
+
+                for key in obs.keys():
+
+                    if isinstance(obs[key],int):
+                        obs[key] = np.array([obs[key]])
+
+                for key in next_obs.keys():
+
+                    if isinstance(next_obs[key],int):
+                        next_obs[key] = np.array([obs[key]])
+
+                self.model.replay_buffer.add(obs, next_obs, np.array([action]), reward, done, [{}])
+
+            for _ in range(gradient_steps):
+                replay_data = self.model.replay_buffer.sample(self.batch_size)
+                with torch.no_grad():
+                    target_q_values = self.model.q_net_target(replay_data.next_observations)
+                    target_q_values = target_q_values.max(dim=1)[0]
+
+                q_values = self.model.q_net(replay_data.observations).gather(1, replay_data.actions.long())
+            
+                loss = nn.functional.mse_loss(q_values,target_q_values)
+
+                self.model.policy.optimizer.zero_grad()
+                loss.backward()
+                self.model.policy.optimizer.step()
+
+                loss_value += loss.item()
+            
+            print(f"Train for buffer step: {loss_value}")  # Print loss
+
