@@ -273,8 +273,9 @@ class PairsPPOModel:
         for i in tqdm( range (0,episode_num), desc='Training Model', unit ='Episode', leave=False):
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
-                self.eval_episode(eval_steps)
-                self.save('dataset_PPO_{i}')
+                avg_reward, avg_percent_change = self.eval_episode(eval_steps)
+                self.save(f"dataset_PPO_{i}")
+                self.write_to_file(f"Training episode {i}, Reward : {avg_reward}, Funds change : {avg_percent_change}%")
 
     def train_algo(self,episode_num,eval_frequency = 5, eval_steps=5):
         self.model.set_env(self.algo_env_dv)
@@ -282,10 +283,11 @@ class PairsPPOModel:
         for i in tqdm( range (0,episode_num), desc='Algo Training Model', unit ='Episode', leave=False):
             self.model.learn(total_timesteps=self.episode_length, reset_num_timesteps=False,callback=callbacks)
             if i % eval_frequency == 0:
-                self.eval_episode(eval_steps, algo=True)
-                self.save('algo_PPO_{i}')
+                avg_reward, avg_percent_change = self.eval_episode(eval_steps, algo=True)
+                self.save(f"algo_PPO_{i}")
+                self.write_to_file(f"Algo training episode {i}, Reward : {avg_reward}, Funds change : {avg_percent_change}%")
 
-
+    
     def mimic_statarb_trading(self, train_steps=200, gradient_steps=50, algo=False, batch_size=500,buffer_size = 1000):
 
         if algo:
@@ -376,6 +378,8 @@ class PairsPPOModel:
 
         print(f"Average reward over {num_episodes} evaluation episodes: {avg_reward}")
         print(f"Average percentage change in money over {num_episodes} evaluation episodes: {avg_percentage_change:.5f}%")
+
+        return avg_reward, avg_percentage_change
             
     def _generate_keyset(self,timeseries_keys,discrete_keys,indicator_keys,token_pair,excluded_keys = []):
 
@@ -402,6 +406,19 @@ class PairsPPOModel:
             indicator_keys.append(token_pair[1]+ '_adfuller')
 
         return lstm_keys, discrete_keys, indicator_keys
+    
+    def write_to_file(self,line_to_write):
+        # Check if the file exists
+        file_path = self.model_save_location +'rewards.txt'
+        if not os.path.exists(file_path):
+            # If the file doesn't exist, create it and write the line
+            with open(file_path, 'w') as file:
+                file.write(line_to_write + '\n')
+        else:
+            # If the file exists, append the line
+            with open(file_path, 'a') as file:
+                file.write(line_to_write + '\n')
+
 
     def plot_episode_1_action(self,excluded_keys = []):
         
